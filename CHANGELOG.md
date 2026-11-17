@@ -3,8 +3,9 @@
 All notable changes to Cursor AI. Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/). Each `## [x.y.z]` section becomes the release notes on GitHub.
 
-## [Unreleased]
+## [1.0.6] - 2026-11-17
 ### Added
+- Windows: the gold app icon now shows in the title bar, taskbar and Alt+Tab (before, only the .exe file itself had it). The icon is bundled inside the exe.
 - Owner dashboard: **Nickname** button to label a device with your own name for it (kept even if the person changes their own name). The Worker upgrades its table automatically; re-paste `server/worker.js` into Cloudflare to get it.
 
 ## [1.0.5] - 2026-11-17

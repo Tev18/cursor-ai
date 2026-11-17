@@ -165,7 +165,7 @@ jobs:
         shell: bash
         run: |
           pip install -r requirements.txt
-          pyinstaller --noconfirm --windowed --onefile --icon icon.ico --name "Cursor AI" --hidden-import keyring.backends.Windows --collect-submodules win32ctypes app.py
+          pyinstaller --noconfirm --windowed --onefile --icon icon.ico --add-data "icon.ico;." --name "Cursor AI" --hidden-import keyring.backends.Windows --collect-submodules win32ctypes app.py
       - name: Package
         working-directory: windows
         shell: pwsh

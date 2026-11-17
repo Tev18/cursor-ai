@@ -138,6 +138,22 @@ class Tracker(unittest.TestCase):
         root.destroy()
 
 
+class WindowIcon(unittest.TestCase):
+    def test_icon_file_is_a_real_multi_size_ico(self):
+        import app
+        from PIL import Image
+        p = app.resource_path("icon.ico"); self.assertTrue(os.path.exists(p))
+        im = Image.open(p); self.assertEqual(im.format, "ICO"); self.assertIn((16, 16), im.info["sizes"]); self.assertIn((256, 256), im.info["sizes"])
+    def test_set_window_icon_never_crashes(self):
+        import tkinter as tk, app
+        root = tk.Tk(); self.assertIn(app.set_window_icon(root), (True, False)); root.destroy()   # Linux Tk can't use .ico: must fail softly
+    def test_bundled_exe_looks_in_meipass(self):
+        import app
+        sys._MEIPASS = "/tmp/xyz"
+        try: self.assertEqual(app.resource_path("icon.ico"), os.path.join("/tmp/xyz", "icon.ico"))
+        finally: del sys._MEIPASS
+
+
 class OwnerTool(unittest.TestCase):
     def test_cli_round_trip(self):
         import importlib.util

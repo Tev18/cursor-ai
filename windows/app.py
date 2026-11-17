@@ -3,6 +3,7 @@ button), click twice on screen to box a region, get the answer in a small floati
 
 The settings window is drawn with ui_kit (rounded black-and-gold canvas widgets)."""
 import ctypes
+import os
 import queue
 import shutil
 import sys
@@ -855,8 +856,27 @@ class App:
         self.root.destroy()
 
 
+def resource_path(name):
+    """Works from source and from the PyInstaller one-file exe (files are unpacked to sys._MEIPASS)."""
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, name)
+
+
+def set_window_icon(root):
+    """Gold icon in the title bar, taskbar and Alt+Tab (instead of Tk's default feather)."""
+    try:
+        root.iconbitmap(default=resource_path("icon.ico"))
+        return True
+    except Exception:
+        return False
+
+
 def main():
     if sys.platform == "win32":
+        try:   # own taskbar identity, so Windows shows our icon and does not group us under python.exe
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("CursorAI.App")
+        except Exception:
+            pass
         try:   # make Tk use real pixels so the selector lines up with the screenshot on scaled displays
             ctypes.windll.shcore.SetProcessDpiAwareness(2)
         except Exception:
@@ -865,6 +885,7 @@ def main():
             except Exception:
                 pass
     root = tk.Tk()
+    set_window_icon(root)
     App(root)
     root.mainloop()
 
