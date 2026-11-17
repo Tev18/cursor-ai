@@ -3,6 +3,11 @@
 All notable changes to Cursor AI. Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/). Each `## [x.y.z]` section becomes the release notes on GitHub.
 
+## [1.0.7] - 2026-11-17
+### Changed
+- **Whitelist.** The dashboard is now an approval list: a device that has never been approved is blocked automatically ("Waiting for approval") until the owner clicks **Approve** in the dashboard. Approved devices keep working offline. The dashboard has a switch to allow new devices automatically instead. Re-paste `server/worker.js` into Cloudflare to get it (existing rows are kept and stay allowed).
+- The apps report to the dashboard built into this version (`ACCESS_SERVER` in version.py), so even a device that never read `access.json` is covered. Builds without a dashboard set (empty `ACCESS_SERVER`) have no access control.
+
 ## [1.0.6] - 2026-11-17
 ### Added
 - Windows: the gold app icon now shows in the title bar, taskbar and Alt+Tab (before, only the .exe file itself had it). The icon is bundled inside the exe.

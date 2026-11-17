@@ -1,4 +1,5 @@
 import os, sys, tempfile, time, unittest
+os.environ["CURSORAI_ACCESS_SERVER"] = ""   # tests never talk to the owner's server
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import settings_store as ss
 

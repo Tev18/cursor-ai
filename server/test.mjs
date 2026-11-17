@@ -20,6 +20,33 @@ const post = (p, body, key) => new Request("https://x" + p, { method: "POST", he
 const get = (p, key) => new Request("https://x" + p, { headers: key ? { authorization: "Bearer " + key } : {} });
 const ping = (o, now) => handle(post("/ping", { id: "a1b2c3d4e5f6", name: "Ali-MacBook", display_name: "Ali", platform: "mac", version: "1.0.4", captures: 0, last_capture: 0, ...o }), env, now);
 
+// whitelist mode is ON by default: a brand-new device is blocked until approved
+{
+  let r0 = await ping({ id: "999999999999", name: "Stranger" }, T0);
+  assert.deepEqual(await r0.json(), { allowed: false, pending: true, message: "Waiting for the owner to approve this device. Send them your name and Device ID." });
+  let l0 = await (await handle(get("/api/devices", "owner-secret-key-123"), env, T0 + 1)).json();
+  assert.equal(l0.whitelist, true); assert.equal(l0.waiting, 1); assert.equal(l0.devices[0].pending, true); assert.equal(l0.devices[0].blocked, true);
+  await ping({ id: "999999999999", name: "Stranger" }, T0 + 2);     // keeps reporting: still waiting, not duplicated
+  assert.equal((await (await handle(get("/api/devices", "owner-secret-key-123"), env, T0 + 3)).json()).total, 1);
+  await handle(post("/api/block", { id: "999999999999", blocked: false }, "owner-secret-key-123"), env, T0 + 4);   // Approve
+  assert.equal((await (await ping({ id: "999999999999" }, T0 + 5)).json()).allowed, true);
+  l0 = await (await handle(get("/api/devices", "owner-secret-key-123"), env, T0 + 6)).json(); assert.equal(l0.waiting, 0); assert.equal(l0.devices[0].pending, false);
+  // approved device stays approved when it reports again; later block still works and is not "pending"
+  await handle(post("/api/block", { id: "999999999999", blocked: true, message: "bye" }, "owner-secret-key-123"), env, T0 + 7);
+  assert.deepEqual(await (await ping({ id: "999999999999" }, T0 + 8)).json(), { allowed: false, message: "bye" });
+  // owner turns the whitelist off: new devices are allowed on first contact; devices already waiting are NOT auto-approved
+  await handle(post("/api/block", { id: "999999999999", blocked: false }, "owner-secret-key-123"), env, T0 + 9);
+  await ping({ id: "888888888888" }, T0 + 10);   // waits (whitelist on)
+  r0 = await handle(post("/api/whitelist", { on: false }), env, T0); assert.equal(r0.status, 401);   // needs the key
+  await handle(post("/api/whitelist", { on: false }, "owner-secret-key-123"), env, T0 + 11);
+  assert.equal((await (await ping({ id: "777777777777" }, T0 + 12)).json()).allowed, true);
+  assert.equal((await (await ping({ id: "888888888888" }, T0 + 13)).json()).allowed, false);
+  l0 = await (await handle(get("/api/devices", "owner-secret-key-123"), env, T0 + 14)).json(); assert.equal(l0.whitelist, false);
+  await handle(post("/api/whitelist", { on: true }, "owner-secret-key-123"), env, T0 + 15);
+  assert.equal((await (await ping({ id: "666666666666" }, T0 + 16)).json()).allowed, false);
+  for (const id of ["999999999999", "888888888888", "777777777777", "666666666666"]) await handle(post("/api/forget", { id }, "owner-secret-key-123"), env, T0 + 20);
+  await handle(post("/api/whitelist", { on: false }, "owner-secret-key-123"), env, T0 + 21);   // the older tests below assume auto-allow
+}
 let r = await ping({}, T0); assert.equal(r.status, 200); assert.deepEqual(await r.json(), { allowed: true, message: "" });
 r = await handle(get("/api/devices"), env, T0); assert.equal(r.status, 401);                       // no key
 r = await handle(get("/api/devices", "wrong"), env, T0); assert.equal(r.status, 401);
@@ -69,7 +96,7 @@ assert.ok(r.headers.get("content-security-policy").includes("default-src 'none'"
   const wrap = { prepare(sql) { let a = []; const st = { bind(...x) { a = x; return st; }, async run() { old.prepare(sql).run(...a); return {}; }, async first() { return old.prepare(sql).get(...a) ?? null; }, async all() { return { results: old.prepare(sql).all(...a) }; } }; return st; } };
   const e2 = { DB: wrap, ADMIN_KEY: "owner-secret-key-123" };
   const j2 = await (await fresh.handle(get("/api/devices", "owner-secret-key-123"), e2, T0)).json();
-  assert.equal(j2.devices[0].name, "Old PC"); assert.equal(j2.devices[0].nickname, "");
+  assert.equal(j2.devices[0].name, "Old PC"); assert.equal(j2.devices[0].nickname, ""); assert.equal(j2.devices[0].blocked, false);   // existing rows are untouched by the upgrade
   await fresh.handle(post("/api/nickname", { id: "ffffffffffff", nickname: "Dad" }, "owner-secret-key-123"), e2, T0);
   assert.equal((await (await fresh.handle(get("/api/devices", "owner-secret-key-123"), e2, T0)).json()).devices[0].nickname, "Dad");
 }

@@ -1,5 +1,6 @@
 """Key visibility + update system tests (no real network: a local fake GitHub serves the releases)."""
 import base64, hashlib, http.server, json, os, shutil, subprocess, sys, tempfile, threading, time, unittest, zipfile
+os.environ["CURSORAI_ACCESS_SERVER"] = ""   # tests never talk to the owner's server
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import settings_store as ss, updater, version
 

@@ -17,3 +17,5 @@ Limits: the repo is public, so `access.json` and device names are public. Use ni
 
 ## Dashboard (who is using it)
 See `server/README.md`. With it you also get a live list of every device, who is online or using the app now, and Block/Allow buttons that act within a minute.
+
+**Whitelist:** new devices are blocked until you click Approve in the dashboard (switchable). A device that has not been approved cannot take captures, even offline.

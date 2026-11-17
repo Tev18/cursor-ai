@@ -379,7 +379,9 @@ class App:
 
     def _update_access_ui(self):
         a = self.access
-        if a.state == "blocked":
+        if a.state == "pending":
+            self.acc_dot.set_color(ui.GOLD); self.acc_status.configure(text="Waiting for approval", fg=ui.TEXT)
+        elif a.state == "blocked":
             self.acc_dot.set_color(ui.ERROR); self.acc_status.configure(text="Turned off", fg=ui.TEXT)
         elif a.state == "allowed":
             self.acc_dot.set_color(ui.SUCCESS)

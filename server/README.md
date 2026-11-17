@@ -16,6 +16,7 @@ A tiny Cloudflare Worker + D1 database (both free). It shows everyone who ever u
    Within 15 minutes (or at next launch) every app on v1.0.5+ starts reporting.
 
 ## Using it
+- **Whitelist (default):** a device that reports for the first time shows as *Pending approval* and is blocked until you click **Approve**. The pill at the top counts how many are waiting. The button next to it switches between "New devices: need my approval" and "New devices: allowed automatically". Devices you already allowed keep working, even offline.
 - **Status**: *Using now* = took a capture in the last 5 minutes; *Online* = heard from in the last 2.5 minutes; *Offline* otherwise; *Blocked* = you switched it off.
 - **Nickname** sets your own label for a device (shown as the main name; their own name stays underneath as "says: ..."). Empty removes it.
 - **Block** switches a device off within a minute (its next heartbeat). **Allow** switches it back on. **Forget** removes the row (it reappears if that device runs the app again).

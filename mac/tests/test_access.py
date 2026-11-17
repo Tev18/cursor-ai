@@ -1,5 +1,6 @@
 """Remote on/off per device."""
 import io, json, os, sys, tempfile, unittest, urllib.error
+os.environ["CURSORAI_ACCESS_SERVER"] = ""   # tests never talk to the owner's server
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import access, settings_store as ss
 
@@ -119,6 +120,7 @@ class Tracker(unittest.TestCase):
         a.report("1", "mac", "", poster=lambda u, b_, t: {"allowed": True, "message": ""}); self.assertTrue(a.allowed)
     def test_offline_heartbeat_is_silent_and_keeps_state(self):
         a = self.mk({"server": "https://x.workers.dev"}); a.refresh()
+        a.report("1", "mac", "", poster=lambda u, b, t: {"allowed": True})
         def boom(u, b, t): raise OSError("down")
         self.assertIsNone(a.report("1", "mac", "", poster=boom)); self.assertTrue(a.allowed)
     def test_capture_count_survives_restart(self):
@@ -135,6 +137,48 @@ class Tracker(unittest.TestCase):
             root.update(); import time; time.sleep(0.02)
             if sent: break
         self.assertEqual(store.load()["display_name"], "Yousef"); self.assertTrue(sent); self.assertEqual(sent[-1][2], "Yousef")
+        root.destroy()
+
+
+class Whitelist(unittest.TestCase):
+    """With a dashboard configured the app is a whitelist: not allowed until the server says it is approved."""
+    SERVER = "https://default.example"
+    def setUp(self):
+        self._old = access.DEFAULT_SERVER; access.DEFAULT_SERVER = self.SERVER
+    def tearDown(self):
+        access.DEFAULT_SERVER = self._old
+    def mk(self, d=None, fetcher=lambda: {}):
+        return access.Access(directory=d or tempfile.mkdtemp(), fetcher=fetcher, dev_id=ME, name="PC")
+    def test_new_device_is_not_allowed_until_approved(self):
+        a = self.mk(); self.assertEqual(a.server, self.SERVER); a.refresh()
+        self.assertFalse(a.allowed); self.assertEqual(a.state, "unknown"); self.assertIn("Checking", a.message)
+        a.report("1", "mac", "", poster=lambda u, b, t: {"allowed": False, "pending": True, "message": "Waiting for the owner"})
+        self.assertFalse(a.allowed); self.assertEqual((a.state, a.message), ("pending", "Waiting for the owner"))
+        a.report("1", "mac", "", poster=lambda u, b, t: {"allowed": True, "message": ""})
+        self.assertTrue(a.allowed); self.assertEqual(a.state, "allowed"); self.assertTrue(a.approved)
+    def test_never_approved_and_offline_stays_blocked(self):
+        a = self.mk(); a.refresh()
+        def boom(u, b, t): raise OSError("offline")
+        self.assertIsNone(a.report("1", "mac", "", poster=boom)); self.assertFalse(a.allowed)
+    def test_approved_device_keeps_working_offline_after_restart(self):
+        d = tempfile.mkdtemp(); a = self.mk(d); a.refresh(); a.report("1", "mac", "", poster=lambda u, b, t: {"allowed": True})
+        def boom(): raise OSError("offline")
+        b = self.mk(d, boom); b.refresh(); self.assertTrue(b.allowed); self.assertTrue(b.approved)
+    def test_owner_can_still_block_an_approved_device(self):
+        a = self.mk(); a.refresh(); a.report("1", "mac", "", poster=lambda u, b, t: {"allowed": True})
+        a.report("1", "mac", "", poster=lambda u, b, t: {"allowed": False, "message": "off"})
+        self.assertFalse(a.allowed); self.assertEqual(a.state, "blocked")
+    def test_policy_server_overrides_the_default(self):
+        a = self.mk(fetcher=lambda: {"server": "https://other.example/"}); a.refresh(); self.assertEqual(a.server, "https://other.example")
+    def test_no_server_means_no_whitelist(self):
+        access.DEFAULT_SERVER = ""; a = self.mk(); a.refresh(); self.assertTrue(a.allowed); self.assertEqual(a.state, "allowed")
+    def test_pending_status_in_the_app(self):
+        import tkinter as tk, app
+        root = tk.Tk(); store = ss.SettingsStore(tempfile.mkdtemp(), KR()); acc = self.mk(store.dir)
+        a = app.App(root, store, access_obj=acc); a.hk.stop(); acc.refresh()
+        acc.report("1", "mac", "", poster=lambda u, b, t: {"allowed": False, "pending": True, "message": "Waiting for the owner"})
+        a._update_access_ui(); self.assertEqual(a.acc_status.cget("text"), "Waiting for approval")
+        a.store.set_key("sk-ant-x"); a.start_capture(); self.assertIn("Waiting for the owner", a.status.cget("text")); self.assertFalse(a.busy)
         root.destroy()
 
 
