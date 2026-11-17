@@ -1,0 +1,159 @@
+name: Release
+# Publish by pushing a tag:  ./tools/release.sh 1.1.0   (or: git tag v1.1.0 && git push origin v1.1.0)
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag must match the app version
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          for f in mac/version.py windows/version.py; do
+            grep -q "^VERSION = \"$V\"" "$f" || { echo "::error::$f does not say VERSION = \"$V\""; exit 1; }
+          done
+          grep -q "^## \[$V\]" CHANGELOG.md || { echo "::error::CHANGELOG.md has no section for $V"; exit 1; }
+
+  build-macos:
+    needs: check
+    runs-on: macos-14
+    env:
+      # Secrets are optional. Without them the app is only ad-hoc signed (see docs/RELEASING.md).
+      HAVE_CERT: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' }}
+      HAVE_NOTARY: ${{ secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_APP_PASSWORD != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Point the app at this repository and its signing key
+        run: python3 tools/stamp_version.py --repo "${{ github.repository }}" --key "${{ vars.UPDATE_PUBLIC_KEY }}"
+      - name: Build
+        working-directory: mac
+        run: |
+          python3 -m venv .venv && source .venv/bin/activate
+          pip install -r requirements.txt
+          pyinstaller --noconfirm --windowed --name "Cursor AI" \
+            --osx-bundle-identifier com.local.cursorai \
+            --hidden-import AppKit --hidden-import Foundation --hidden-import Quartz \
+            --hidden-import keyring.backends.macOS app.py
+      - name: Import Developer ID certificate
+        if: env.HAVE_CERT == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KC_PW="$(uuidgen)"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KC_PW" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KC_PW" build.keychain
+          security import "$RUNNER_TEMP/cert.p12" -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KC_PW" build.keychain
+          rm -f "$RUNNER_TEMP/cert.p12"
+          ID="$(security find-identity -v -p codesigning build.keychain | awk -F'"' '/Developer ID Application/{print $2; exit}')"
+          [ -n "$ID" ] || { echo "::error::No 'Developer ID Application' identity in the certificate"; exit 1; }
+          echo "SIGN_ID=$ID" >> "$GITHUB_ENV"
+      - name: Sign
+        working-directory: mac
+        run: |
+          APP="dist/Cursor AI.app"
+          if [ "$HAVE_CERT" = "true" ]; then
+            codesign --force --deep --options runtime --timestamp --entitlements entitlements.plist --sign "$SIGN_ID" "$APP"
+          else
+            echo "::warning::No Apple certificate configured: ad-hoc signing only (not notarised)."
+            codesign --force --deep --sign - "$APP"
+          fi
+          codesign --verify --deep --strict --verbose=2 "$APP"
+      - name: Notarise and staple
+        if: env.HAVE_CERT == 'true' && env.HAVE_NOTARY == 'true'
+        working-directory: mac
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          ditto -c -k --keepParent "dist/Cursor AI.app" notarize.zip
+          xcrun notarytool submit notarize.zip --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          xcrun stapler staple "dist/Cursor AI.app"
+          spctl --assess --type execute --verbose "dist/Cursor AI.app"
+      - name: Package
+        working-directory: mac
+        run: |
+          ditto -c -k --keepParent "dist/Cursor AI.app" "Cursor-AI-macOS-${GITHUB_REF_NAME}.zip"
+          mkdir dmg && cp -R "dist/Cursor AI.app" dmg/ && ln -s /Applications dmg/Applications
+          hdiutil create -volname "Cursor AI" -srcfolder dmg -ov -format UDZO "Cursor-AI-macOS-${GITHUB_REF_NAME}.dmg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: |
+            mac/Cursor-AI-macOS-*.zip
+            mac/Cursor-AI-macOS-*.dmg
+
+  build-windows:
+    needs: check
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Point the app at this repository and its signing key
+        shell: bash
+        run: python tools/stamp_version.py --repo "${{ github.repository }}" --key "${{ vars.UPDATE_PUBLIC_KEY }}"
+      - name: Build
+        working-directory: windows
+        shell: bash
+        run: |
+          pip install -r requirements.txt
+          pyinstaller --noconfirm --windowed --onefile --name "Cursor AI" --hidden-import keyring.backends.Windows --collect-submodules win32ctypes app.py
+      - name: Package
+        working-directory: windows
+        shell: pwsh
+        run: Compress-Archive -Path "dist/Cursor AI.exe" -DestinationPath "Cursor-AI-Windows-$env:GITHUB_REF_NAME.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: windows/Cursor-AI-Windows-*.zip
+
+  publish:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Checksums and signatures
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          cd assets
+          sha256sum Cursor-AI-*.zip Cursor-AI-*.dmg > SHA256SUMS.txt
+          if [ -n "$UPDATE_SIGNING_KEY" ]; then
+            pip install cryptography
+            python3 ../tools/sign_release.py Cursor-AI-*.zip
+          else
+            echo "::warning::UPDATE_SIGNING_KEY not set: release is published without signatures (checksum only)."
+          fi
+          ls -l
+      - name: Release notes from CHANGELOG
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          awk -v v="$V" '$0 ~ "^## \\[" v "\\]" {on=1; next} /^## \[/ {on=0} on' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "Cursor AI $GITHUB_REF_NAME" > notes.md
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PRE=""; case "$GITHUB_REF_NAME" in *-*) PRE="--prerelease";; esac
+          gh release create "$GITHUB_REF_NAME" assets/* --title "Cursor AI $GITHUB_REF_NAME" --notes-file notes.md $PRE

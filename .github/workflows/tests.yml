@@ -1,0 +1,25 @@
+name: Tests
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [mac, windows]
+    steps:
+      - uses: actions/checkout@v4
+      - name: System packages (Tk + virtual display)
+        run: sudo apt-get update && sudo apt-get install -y python3-tk python3-venv xvfb
+      - name: Python packages
+        run: |
+          python3 -m venv --system-site-packages .venv
+          .venv/bin/pip install pillow cryptography keyring pynput requests certifi
+      - name: Compile
+        run: .venv/bin/python -m compileall -q ${{ matrix.app }}
+      - name: Run tests
+        working-directory: ${{ matrix.app }}
+        run: xvfb-run -a ../.venv/bin/python -m unittest discover -s tests -v
