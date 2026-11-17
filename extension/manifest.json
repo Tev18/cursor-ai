@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Cursor AI Lookup",
+  "version": "1.1.0",
+  "description": "Hold ] and click one corner, then click the opposite corner, to screenshot that area and ask Claude about it. The answer appears in a small movable widget. Works inside iframes and canvas-based apps.",
+  "permissions": ["storage"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "all_frames": true,
+      "match_about_blank": true,
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

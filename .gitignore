@@ -1,0 +1,32 @@
+# build output
+build/
+dist/
+*.spec
+*.dmg
+*.app/
+*.egg-info/
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+# macOS / editors
+.DS_Store
+.idea/
+.vscode/
+# SECRETS AND PERSONAL DATA: never commit these
+.env
+.env.*
+*.p12
+*.pem
+*.key
+*.cer
+*.mobileprovision
+api_key.txt
+github_token.txt
+settings.json
+update_signing_key*
+*.sig
+# local test output
+node_modules/
+.pytest_cache/
