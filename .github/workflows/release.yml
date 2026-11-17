@@ -54,7 +54,7 @@ jobs:
         run: |
           python3 -m venv .venv && source .venv/bin/activate
           pip install -r requirements.txt
-          pyinstaller --noconfirm --windowed --name "Cursor AI" \
+          pyinstaller --noconfirm --windowed --name "Cursor AI" --icon icon.icns \
             --osx-bundle-identifier com.local.cursorai \
             --hidden-import AppKit --hidden-import Foundation --hidden-import Quartz \
             --hidden-import keyring.backends.macOS app.py
@@ -127,7 +127,7 @@ jobs:
         shell: bash
         run: |
           pip install -r requirements.txt
-          pyinstaller --noconfirm --windowed --onefile --name "Cursor AI" --hidden-import keyring.backends.Windows --collect-submodules win32ctypes app.py
+          pyinstaller --noconfirm --windowed --onefile --icon icon.ico --name "Cursor AI" --hidden-import keyring.backends.Windows --collect-submodules win32ctypes app.py
       - name: Package
         working-directory: windows
         shell: pwsh

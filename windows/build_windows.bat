@@ -15,7 +15,7 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 if errorlevel 1 goto :fail
 
-pyinstaller --noconfirm --windowed --onefile --name "Cursor AI" --hidden-import keyring.backends.Windows --collect-submodules win32ctypes app.py
+pyinstaller --noconfirm --windowed --onefile --icon icon.ico --name "Cursor AI" --hidden-import keyring.backends.Windows --collect-submodules win32ctypes app.py
 if errorlevel 1 goto :fail
 
 echo.

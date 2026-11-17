@@ -18,6 +18,7 @@ First tagged release of the desktop apps.
 - Popup opacity slider 10%–100% in 1% steps (85% on new installs) and an **Always on Top** switch.
 - Keyboard shortcut buttons that record the next key combination (shown with ⌃ ⌥ ⇧ ⌘ on macOS), conflict detection.
 - macOS Screen Recording status and shortcut button; Input Monitoring is no longer shown (shortcuts use Carbon hotkeys).
+- App icon (gold rounded square with a pointer) for the macOS app and the Windows exe; regenerate with `tools/make_icon.py`.
 - Windows app with the same features (global hotkeys via `RegisterHotKey`).
 - GitHub Actions: tests on every push; tagged pushes build, sign, (optionally) notarise and publish releases.
 

@@ -8,7 +8,7 @@ fi
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-pyinstaller --noconfirm --windowed --name "Cursor AI" \
+pyinstaller --noconfirm --windowed --name "Cursor AI" --icon icon.icns \
   --osx-bundle-identifier com.local.cursorai \
   --hidden-import AppKit --hidden-import Foundation --hidden-import Quartz \
   --hidden-import keyring.backends.macOS \
