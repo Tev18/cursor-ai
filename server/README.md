@@ -17,6 +17,7 @@ A tiny Cloudflare Worker + D1 database (both free). It shows everyone who ever u
 
 ## Using it
 - **Status**: *Using now* = took a capture in the last 5 minutes; *Online* = heard from in the last 2.5 minutes; *Offline* otherwise; *Blocked* = you switched it off.
+- **Nickname** sets your own label for a device (shown as the main name; their own name stays underneath as "says: ..."). Empty removes it.
 - **Block** switches a device off within a minute (its next heartbeat). **Allow** switches it back on. **Forget** removes the row (it reappears if that device runs the app again).
 - Free limits: D1 allows 100,000 writes/day, about 65 always-on devices at one heartbeat a minute.
 
@@ -24,3 +25,6 @@ A tiny Cloudflare Worker + D1 database (both free). It shows everyone who ever u
 - Anyone can send pings to `/ping` (that is how apps report), so the list can be spammed with fake devices; **Forget** removes them. Blocking and reading always need your admin key.
 - It is a soft control: the app is open source and runs on the user's computer, so a determined person can edit it or stay offline. Older app versions (before 1.0.5) do not report.
 - Test the Worker logic yourself: `node server/test.mjs` (Node 22+).
+
+## Updating the Worker later
+When `server/worker.js` changes in this repo: Cloudflare -> your Worker -> **Edit code** -> select all, paste the new file, **Deploy**. Your data, the `DB` binding and the `ADMIN_KEY` secret stay as they are.

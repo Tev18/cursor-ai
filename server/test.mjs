@@ -37,6 +37,13 @@ assert.equal(j.devices[0].captures, 3); assert.equal(j.devices[0].first_seen, T0
 r = await handle(post("/api/block", { id: "a1b2c3d4e5f6", blocked: true, message: "Switched off" }, "owner-secret-key-123"), env, T0); assert.equal((await r.json()).ok, true);
 assert.deepEqual(await (await ping({}, T0 + 30_000)).json(), { allowed: false, message: "Switched off" });
 await handle(post("/api/block", { id: "a1b2c3d4e5f6", blocked: false }, "owner-secret-key-123"), env, T0); assert.equal((await (await ping({}, T0 + 40_000)).json()).allowed, true);
+// nickname: owner-set, survives later pings, needs the key, markup stripped, empty removes it
+r = await handle(post("/api/nickname", { id: "a1b2c3d4e5f6", nickname: "Ali (cousin)" }), env, T0); assert.equal(r.status, 401);
+r = await handle(post("/api/nickname", { id: "a1b2c3d4e5f6", nickname: "Ali <b>(cousin)</b>" }, "owner-secret-key-123"), env, T0); assert.equal((await r.json()).ok, true);
+await ping({ display_name: "Different" }, T0 + 50_000);
+j = await (await handle(get("/api/devices", "owner-secret-key-123"), env, T0 + 51_000)).json(); assert.equal(j.devices[0].nickname, "Ali b(cousin)/b"); assert.equal(j.devices[0].display_name, "Different");
+await handle(post("/api/nickname", { id: "a1b2c3d4e5f6", nickname: "" }, "owner-secret-key-123"), env, T0);
+j = await (await handle(get("/api/devices", "owner-secret-key-123"), env, T0 + 52_000)).json(); assert.equal(j.devices[0].nickname, "");
 // bad input
 assert.equal((await ping({ id: "nothex" }, T0)).status, 400);
 assert.equal((await handle(new Request("https://x/ping", { method: "POST", body: "{" }), env, T0)).status, 400);
@@ -53,4 +60,17 @@ assert.equal((await handle(get("/api/devices", ""), { ...env, ADMIN_KEY: undefin
 // dashboard page holds no data and is locked down
 r = await handle(get("/admin"), env, T0); const html = await r.text(); assert.equal(r.status, 200); assert.ok(html.includes("Admin key")); assert.ok(!html.includes("Ali"));
 assert.ok(r.headers.get("content-security-policy").includes("default-src 'none'"));
+// migration: a table created by an older worker (no nickname column) is upgraded in place, rows kept
+{
+  const { default: fresh } = await import("./worker.js?migrate");
+  const old = new DatabaseSync(":memory:");
+  old.exec("CREATE TABLE devices (id TEXT PRIMARY KEY, name TEXT, display_name TEXT, platform TEXT, version TEXT, first_seen INTEGER, last_seen INTEGER, captures INTEGER DEFAULT 0, last_capture INTEGER DEFAULT 0, blocked INTEGER DEFAULT 0, block_message TEXT DEFAULT '')");
+  old.exec("INSERT INTO devices (id, name, first_seen, last_seen) VALUES ('ffffffffffff', 'Old PC', 1, 2)");
+  const wrap = { prepare(sql) { let a = []; const st = { bind(...x) { a = x; return st; }, async run() { old.prepare(sql).run(...a); return {}; }, async first() { return old.prepare(sql).get(...a) ?? null; }, async all() { return { results: old.prepare(sql).all(...a) }; } }; return st; } };
+  const e2 = { DB: wrap, ADMIN_KEY: "owner-secret-key-123" };
+  const j2 = await (await fresh.handle(get("/api/devices", "owner-secret-key-123"), e2, T0)).json();
+  assert.equal(j2.devices[0].name, "Old PC"); assert.equal(j2.devices[0].nickname, "");
+  await fresh.handle(post("/api/nickname", { id: "ffffffffffff", nickname: "Dad" }, "owner-secret-key-123"), e2, T0);
+  assert.equal((await (await fresh.handle(get("/api/devices", "owner-secret-key-123"), e2, T0)).json()).devices[0].nickname, "Dad");
+}
 console.log("worker tests OK");

@@ -4,6 +4,7 @@
 //   GET  /admin         the dashboard page (the page itself holds no data; it asks for your admin key)
 //   GET  /api/devices   (admin key)  everyone who ever used the app
 //   POST /api/block     (admin key)  {id, blocked, message?}  switch a device off/on
+//   POST /api/nickname  (admin key)  {id, nickname}               your own label for a device (empty = remove)
 //   POST /api/forget    (admin key)  {id}                     delete a device's row
 //
 // Bindings (Settings -> Bindings / Variables): DB = D1 database, ADMIN_KEY = a long secret you choose.
@@ -15,7 +16,7 @@ const USING_MS = 300000;    // took a capture within 5 min = using it right now
 const SCHEMA = `CREATE TABLE IF NOT EXISTS devices (
   id TEXT PRIMARY KEY, name TEXT, display_name TEXT, platform TEXT, version TEXT,
   first_seen INTEGER, last_seen INTEGER, captures INTEGER DEFAULT 0, last_capture INTEGER DEFAULT 0,
-  blocked INTEGER DEFAULT 0, block_message TEXT DEFAULT '')`;
+  blocked INTEGER DEFAULT 0, block_message TEXT DEFAULT '', nickname TEXT DEFAULT '')`;
 
 const json = (o, status = 200) => new Response(JSON.stringify(o), {
   status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
@@ -36,7 +37,14 @@ const clip = (v, n) => (typeof v === "string" ? v.replace(/[\u0000-\u001f<>]/g, 
 
 let ready = false;
 async function ensureSchema(env) {
-  if (!ready) { await env.DB.prepare(SCHEMA).run(); ready = true; }
+  if (ready) return;
+  await env.DB.prepare(SCHEMA).run();
+  // Older deployments have the table without the nickname column: add it once.
+  const { results } = await env.DB.prepare("PRAGMA table_info(devices)").all();
+  if (!results.some((c) => c.name === "nickname")) {
+    await env.DB.prepare("ALTER TABLE devices ADD COLUMN nickname TEXT DEFAULT ''").run();
+  }
+  ready = true;
 }
 
 async function handle(request, env, now = Date.now()) {
@@ -74,12 +82,13 @@ async function handle(request, env, now = Date.now()) {
         online: now - d.last_seen < ONLINE_MS, using: d.last_capture > 0 && now - d.last_capture < USING_MS }));
       return json({ now, devices, online: devices.filter((d) => d.online).length, total: devices.length });
     }
-    if (request.method === "POST" && (path === "/api/block" || path === "/api/forget")) {
+    if (request.method === "POST" && (path === "/api/block" || path === "/api/forget" || path === "/api/nickname")) {
       let b;
       try { b = await request.json(); } catch { return json({ error: "bad json" }, 400); }
       const id = String(b && b.id || "");
       if (!/^[0-9a-f]{12}$/.test(id)) return json({ error: "bad id" }, 400);
       if (path === "/api/forget") await env.DB.prepare("DELETE FROM devices WHERE id = ?1").bind(id).run();
+      else if (path === "/api/nickname") await env.DB.prepare("UPDATE devices SET nickname = ?2 WHERE id = ?1").bind(id, clip(b.nickname, 40)).run();
       else await env.DB.prepare("UPDATE devices SET blocked = ?2, block_message = ?3 WHERE id = ?1")
         .bind(id, b.blocked ? 1 : 0, clip(b.message, 200)).run();
       return json({ ok: true });
@@ -120,10 +129,12 @@ function show(d){$("login").hidden=true;$("app").hidden=false;$("s_online").text
 var body=$("rows");body.textContent="";
 d.devices.forEach(function(x){var tr=document.createElement("tr");var c=document.createElement("td");var dot=document.createElement("span");dot.className="dot"+(x.blocked?" off":(x.online?" on":""));c.appendChild(dot);
 c.appendChild(document.createTextNode(x.blocked?"Blocked":(x.using?"Using now":(x.online?"Online":"Offline"))));tr.appendChild(c);
-td(tr,x.display_name||"(no name)");td(tr,x.name+"  ·  "+x.id,"mut");td(tr,x.platform,"mut");td(tr,x.version,"mut");td(tr,ago(x.last_seen,d.now),x.online?"":"mut");td(tr,String(x.captures),"mut");td(tr,ago(x.first_seen,d.now),"mut");
+var nc=td(tr,x.nickname||x.display_name||"(no name)");if(x.nickname&&x.display_name&&x.display_name!==x.nickname){var sm=document.createElement("div");sm.className="mut";sm.style.fontSize="12px";sm.textContent="says: "+x.display_name;nc.appendChild(sm)}
+td(tr,x.name+"  ·  "+x.id,"mut");td(tr,x.platform,"mut");td(tr,x.version,"mut");td(tr,ago(x.last_seen,d.now),x.online?"":"mut");td(tr,String(x.captures),"mut");td(tr,ago(x.first_seen,d.now),"mut");
 var a=document.createElement("td");var b=document.createElement("button");b.textContent=x.blocked?"Allow":"Block";if(!x.blocked)b.className="bad";
 b.onclick=function(){api("/api/block",{id:x.id,blocked:!x.blocked}).then(load).catch(fail)};a.appendChild(b);
-var f=document.createElement("button");f.textContent="Forget";f.style.marginLeft="8px";f.onclick=function(){if(confirm("Delete "+(x.display_name||x.name)+" from the list?"))api("/api/forget",{id:x.id}).then(load).catch(fail)};a.appendChild(f);tr.appendChild(a);body.appendChild(tr)})}
+var n=document.createElement("button");n.textContent="Nickname";n.style.marginLeft="8px";n.onclick=function(){var v=prompt("Nickname for "+(x.display_name||x.name)+" (leave empty to remove):",x.nickname||"");if(v!==null)api("/api/nickname",{id:x.id,nickname:v}).then(load).catch(fail)};a.appendChild(n);
+var f=document.createElement("button");f.textContent="Forget";f.style.marginLeft="8px";f.onclick=function(){if(confirm("Delete "+(x.nickname||x.display_name||x.name)+" from the list?"))api("/api/forget",{id:x.id}).then(load).catch(fail)};a.appendChild(f);tr.appendChild(a);body.appendChild(tr)})}
 function fail(e){sessionStorage.removeItem("k");KEY="";$("app").hidden=true;$("login").hidden=false;$("err").textContent=e.message}
 function load(){if(!KEY)return;api("/api/devices").then(show).catch(fail)}
 $("go").onclick=function(){KEY=$("key").value.trim();sessionStorage.setItem("k",KEY);$("err").textContent="";load()};
