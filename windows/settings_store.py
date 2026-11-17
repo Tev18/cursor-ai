@@ -18,11 +18,24 @@ DEFAULTS = {
     "dark_text": False,
     "opacity": 0.85,          # new installs; any valid saved value is kept
     "always_on_top": True,
+    "popup_scale": 1.0,       # popup size + text size, 0.5 .. 1.5
     "auto_update_check": True,
     "update_last_check": 0,
 }
 OPACITY_MIN = 0.10  # 10 %
 OPACITY_MAX = 1.0
+SCALE_MIN, SCALE_MAX = 0.5, 1.5
+
+
+def clamp_scale(value, fallback=1.0):
+    """Popup scale as a fraction in [SCALE_MIN, SCALE_MAX], in 5 % steps."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        v = fallback
+    if v != v:
+        v = fallback
+    return round(min(SCALE_MAX, max(SCALE_MIN, v)) * 20) / 20
 MODELS = ["claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5-5", "claude-fable-5-1"]
 
 
@@ -74,6 +87,7 @@ class SettingsStore:
         op = data["opacity"]
         data["opacity"] = clamp_opacity(op)
         data["always_on_top"] = bool(data["always_on_top"])
+        data["popup_scale"] = clamp_scale(data["popup_scale"])
         return data
 
     def save(self, values):

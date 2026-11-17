@@ -9,7 +9,7 @@ TITLE = "CursorAI-Answer"
 
 
 class AnswerWindow:
-    def __init__(self, root, dark_text=False, on_color_change=None, opacity=1.0, always_on_top=True):
+    def __init__(self, root, dark_text=False, on_color_change=None, opacity=1.0, always_on_top=True, scale=1.0):
         self.root = root
         self.dark_text = dark_text
         self.on_color_change = on_color_change
@@ -33,21 +33,22 @@ class AnswerWindow:
                 pass
         self.opacity = 1.0
         self.set_opacity(opacity)
-        self.win.geometry("420x140+80+80")
-        self.win.minsize(160, 60)
+        self.scale = ss.clamp_scale(scale)
+        self.win.geometry(f"{round(420 * self.scale)}x{round(140 * self.scale)}+80+80")
+        self.win.minsize(round(160 * min(1, self.scale)), round(60 * min(1, self.scale)))
 
         self.bar = tk.Frame(self.win, height=18, cursor="fleur")
-        self.drag_hint = tk.Label(self.bar, text="⠿", padx=6, cursor="fleur")
+        self.drag_hint = tk.Label(self.bar, text="⠿", padx=6, cursor="fleur", font=("Helvetica", self._px(11)))
         self.drag_hint.pack(side="left")
         self.bar.pack(fill="x", side="top")
-        self.close_btn = tk.Label(self.bar, text="×", padx=6, cursor="hand2")
+        self.close_btn = tk.Label(self.bar, text="×", padx=6, cursor="hand2", font=("Helvetica", self._px(11)))
         self.close_btn.pack(side="right")
-        self.color_btn = tk.Label(self.bar, text="Aa", padx=6, cursor="hand2")
+        self.color_btn = tk.Label(self.bar, text="Aa", padx=6, cursor="hand2", font=("Helvetica", self._px(11)))
         self.color_btn.pack(side="right")
         self.text = tk.Label(self.win, text="", justify="left", anchor="nw", wraplength=400,
-                             font=("Helvetica", 15, "bold"), padx=8, pady=4)
+                             font=("Helvetica", self._px(15), "bold"), padx=8, pady=4)
         self.text.pack(fill="both", expand=True)
-        self.grip = tk.Label(self.win, text="◢", cursor="bottom_right_corner")
+        self.grip = tk.Label(self.win, text="◢", cursor="bottom_right_corner", font=("Helvetica", self._px(11)))
         self.grip.place(relx=1.0, rely=1.0, anchor="se")
 
         for w in (self.bar, self.drag_hint):
@@ -60,6 +61,27 @@ class AnswerWindow:
         self.win.bind("<Configure>", lambda e: self.text.configure(wraplength=max(60, self.win.winfo_width() - 24)))
         self._apply_colors()
         self._keepalive()
+
+    def _px(self, base):
+        return max(6, round(base * self.scale))
+
+    def set_scale(self, value):
+        """Make the popup and its text bigger/smaller (0.5 .. 1.5); the window is resized by the same ratio."""
+        new = ss.clamp_scale(value, fallback=self.scale)
+        if new == self.scale:
+            return
+        ratio, self.scale = new / self.scale, new
+        for w, base, bold in ((self.text, 15, True), (self.drag_hint, 11, False), (self.close_btn, 11, False),
+                              (self.color_btn, 11, False), (self.grip, 11, False)):
+            w.configure(font=("Helvetica", self._px(base), "bold") if bold else ("Helvetica", self._px(base)))
+        try:
+            self.win.update_idletasks()
+            w = max(60, round(self.win.winfo_width() * ratio)) if self.win.winfo_width() > 1 else round(420 * new)
+            h = max(30, round(self.win.winfo_height() * ratio)) if self.win.winfo_height() > 1 else round(140 * new)
+            self.win.minsize(round(160 * min(1, new)), round(60 * min(1, new)))
+            self.win.geometry(f"{w}x{h}")
+        except tk.TclError:
+            pass
 
     def set_opacity(self, value):
         """Whole-popup opacity (text included), 0.10 .. 1.0."""
@@ -156,6 +178,6 @@ class AnswerWindow:
         self._rw, self._rh = self.win.winfo_width(), self.win.winfo_height()
 
     def _resize_move(self, e):
-        w = max(160, self._rw + e.x_root - self._rx)
-        h = max(60, self._rh + e.y_root - self._ry)
+        w = max(self.win.minsize()[0], self._rw + e.x_root - self._rx)
+        h = max(self.win.minsize()[1], self._rh + e.y_root - self._ry)
         self.win.geometry(f"{w}x{h}")

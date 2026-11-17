@@ -41,7 +41,7 @@ class App:
         root.configure(bg=ui.BG)
         root.minsize(560, 480)
         self.answer = answer_window.AnswerWindow(root, self.cfg["dark_text"], self._save_color, self.cfg["opacity"],
-                                                 self.cfg["always_on_top"])
+                                                 self.cfg["always_on_top"], self.cfg["popup_scale"])
         self._upd_info = None
         self._upd_busy = False
         self._build()
@@ -219,8 +219,24 @@ class App:
         ui.label(rng, "100%", 10, fg=ui.TEXT2).pack(side="right", padx=(0, 8))
 
         ui.divider(c).grid(row=3, column=0, sticky="ew", pady=8)
+        stop = tk.Frame(c, bg=ui.CARD)
+        stop.grid(row=4, column=0, sticky="ew")
+        stop.columnconfigure(0, weight=1)
+        ui.label(stop, "Popup Size", 13).grid(row=0, column=0, sticky="w")
+        self.sc_label = ui.label(stop, f"{round(self.cfg['popup_scale'] * 100)}%", 13, "bold", fg=ui.GOLD)
+        self.sc_label.grid(row=0, column=1, sticky="e")
+        self.sc_var = tk.DoubleVar(value=self.cfg["popup_scale"])
+        self.sc_scale = ui.GoldSlider(c, self.sc_var, from_=ss.SCALE_MIN, to=ss.SCALE_MAX, step=0.05, height=28,
+                                      command=self._scale_changed, release_command=lambda v: self._scale_released())
+        self.sc_scale.grid(row=5, column=0, sticky="ew", pady=(2, 0))
+        srng = tk.Frame(c, bg=ui.CARD)
+        srng.grid(row=6, column=0, sticky="ew")
+        ui.label(srng, "50%", 10, fg=ui.TEXT2).pack(side="left", padx=(8, 0))
+        ui.label(srng, "150%", 10, fg=ui.TEXT2).pack(side="right", padx=(0, 8))
+
+        ui.divider(c).grid(row=7, column=0, sticky="ew", pady=8)
         row = tk.Frame(c, bg=ui.CARD)
-        row.grid(row=4, column=0, sticky="ew")
+        row.grid(row=8, column=0, sticky="ew")
         row.columnconfigure(0, weight=1)
         txt = tk.Frame(row, bg=ui.CARD)
         txt.grid(row=0, column=0, sticky="ew")
@@ -417,7 +433,7 @@ class App:
             return
         self.store.save({"model": self.model_var.get().strip(), "instruction": self._instruction(),
                          "capture_hotkey": combos[0], "toggle_hotkey": combos[1], "color_hotkey": combos[2],
-                         "opacity": round(self.answer.opacity, 2), "always_on_top": bool(self.top_var.get())})
+                         "opacity": round(self.answer.opacity, 2), "popup_scale": self.answer.scale, "always_on_top": bool(self.top_var.get())})
         self.cfg = self.store.load()
         self.apply_hotkeys(quiet=True)
         self._set_status("Settings saved ✓", "ok")
@@ -446,6 +462,13 @@ class App:
     def _opacity_changed(self, value):
         self.answer.set_opacity(float(value))
         self.op_label.configure(text=f"{round(self.answer.opacity * 100)}%")
+
+    def _scale_changed(self, value):
+        self.answer.set_scale(float(value))
+        self.sc_label.configure(text=f"{round(self.answer.scale * 100)}%")
+
+    def _scale_released(self):
+        self.store.save({"popup_scale": self.answer.scale})
 
     def _opacity_released(self):
         self.store.save({"opacity": round(self.answer.opacity, 2)})

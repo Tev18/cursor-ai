@@ -686,3 +686,22 @@ class Gui(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)
+
+
+class PopupScale(unittest.TestCase):
+    def test_clamp_and_persist(self):
+        import settings_store as ss
+        self.assertEqual(ss.clamp_scale(0.1), 0.5); self.assertEqual(ss.clamp_scale(9), 1.5)
+        self.assertEqual(ss.clamp_scale("x"), 1.0); self.assertEqual(ss.clamp_scale(0.73), 0.75)
+
+    def test_window_and_text_shrink(self):
+        import tkinter as tk, answer_window
+        root = tk.Tk(); w = answer_window.AnswerWindow(root); w.win.update_idletasks()
+        big = int(str(w.text.cget("font")).split()[1]) if False else w.text.cget("font")
+        w.win.geometry("420x140"); w.win.update_idletasks()
+        w.set_scale(0.5); w.win.update_idletasks()
+        self.assertEqual(w.scale, 0.5)
+        self.assertLess(w.win.winfo_width(), 300); self.assertLess(w.win.winfo_height(), 100)
+        self.assertIn("8", str(w.text.cget("font")))
+        w.set_scale(1.0); self.assertIn("15", str(w.text.cget("font")))
+        root.destroy()
