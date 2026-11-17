@@ -1,3 +1,5 @@
+> **Automatic releases:** pushing to `main` with a new `VERSION` in `mac/version.py` / `windows/version.py` (plus a `## [x.y.z]` CHANGELOG section) builds and publishes that version. If it already has a release, nothing happens. The Mac build is best-effort in this mode: if it fails, the Windows release still goes out.
+
 # Releasing and updates
 
 ## 1. Create the private GitHub repository (once)

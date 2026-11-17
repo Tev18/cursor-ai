@@ -1,8 +1,14 @@
 name: Release
-# Publish by pushing a tag:  ./tools/release.sh 1.1.0   (or: git tag v1.1.0 && git push origin v1.1.0)
+# Three ways to publish:
+#  1. Automatic: push to main with a new VERSION in mac/version.py + windows/version.py (and a CHANGELOG section).
+#     If that version already has a release, nothing happens.
+#  2. The "Run workflow" button (version typed below).
+#  3. Pushing a tag:  ./tools/release.sh 1.1.0   (or: git tag v1.1.0 && git push origin v1.1.0)
 on:
   push:
     tags: ["v*"]
+    branches: [main]
+    paths: ["mac/version.py", "windows/version.py", ".github/workflows/release.yml"]
   workflow_dispatch:            # the "Run workflow" button: publishes the version typed below (creates the tag)
     inputs:
       version:
@@ -15,14 +21,40 @@ on:
         default: false
 permissions:
   contents: write
-env:
-  TAG: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.t.outputs.tag }}
+      skip: ${{ steps.t.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: t
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ]; then TAG="v$INPUT_VERSION"
+          elif [ "$REF_TYPE" = tag ]; then TAG="$GITHUB_REF_NAME"
+          else TAG="v$(sed -n 's/^VERSION = "\(.*\)"/\1/p' mac/version.py)"; fi
+          SKIP=false
+          if [ "$EVENT" = push ] && [ "$REF_TYPE" = branch ] && gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            SKIP=true; echo "Release $TAG already exists - nothing to do."
+          fi
+          echo "Releasing $TAG (skip=$SKIP)"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"; echo "skip=$SKIP" >> "$GITHUB_OUTPUT"
+
   check:
+    needs: prepare
+    if: needs.prepare.outputs.skip != 'true'
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -35,10 +67,13 @@ jobs:
           grep -q "^## \[$V\]" CHANGELOG.md || { echo "::error::CHANGELOG.md has no section for $V"; exit 1; }
 
   build-macos:
-    needs: check
-    if: github.event_name != 'workflow_dispatch' || inputs.build_macos
+    needs: [prepare, check]
+    if: needs.prepare.outputs.skip != 'true' && (github.event_name != 'workflow_dispatch' || inputs.build_macos)
+    # An automatic release must not be blocked by the Mac build failing; the Windows release still goes out.
+    continue-on-error: ${{ github.event_name == 'push' && github.ref_type == 'branch' }}
     runs-on: macos-latest
     env:
+      TAG: ${{ needs.prepare.outputs.tag }}
       # Secrets are optional. Without them the app is only ad-hoc signed (see docs/RELEASING.md).
       HAVE_CERT: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' }}
       HAVE_NOTARY: ${{ secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_APP_PASSWORD != '' }}
@@ -112,7 +147,10 @@ jobs:
             mac/Cursor-AI-macOS-*.dmg
 
   build-windows:
-    needs: check
+    needs: [prepare, check]
+    if: needs.prepare.outputs.skip != 'true'
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -138,8 +176,10 @@ jobs:
           path: windows/Cursor-AI-Windows-*.zip
 
   publish:
-    needs: [build-macos, build-windows]
-    if: ${{ !cancelled() && needs.build-windows.result == 'success' && (needs.build-macos.result == 'success' || needs.build-macos.result == 'skipped') }}
+    needs: [prepare, build-macos, build-windows]
+    if: ${{ !cancelled() && needs.prepare.outputs.skip != 'true' && needs.build-windows.result == 'success' && (needs.build-macos.result == 'success' || needs.build-macos.result == 'skipped') }}
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
