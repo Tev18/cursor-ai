@@ -37,7 +37,7 @@ jobs:
   build-macos:
     needs: check
     if: github.event_name != 'workflow_dispatch' || inputs.build_macos
-    runs-on: macos-14
+    runs-on: macos-latest
     env:
       # Secrets are optional. Without them the app is only ad-hoc signed (see docs/RELEASING.md).
       HAVE_CERT: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' }}
