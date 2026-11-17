@@ -1,10 +1,11 @@
 # Changelog
 
 All notable changes to Cursor AI. Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow
-[Semantic Versioning](https://semver.org/). Each `## 1.0.2
-- New **Popup Size** slider (50%–150%) in Appearance: scales the answer popup and its text together. Saved with your settings.
+[Semantic Versioning](https://semver.org/). Each `## [x.y.z]` section becomes the release notes on GitHub.
 
-## [x.y.z]` section becomes the release notes on GitHub.
+## [1.0.2] - 2026-11-17
+### Added
+- **Popup Size** slider (50%–150%) in Appearance: scales the answer popup and its text together. Saved with your settings.
 
 ## [1.0.1] - 2026-11-17
 ### Fixed
