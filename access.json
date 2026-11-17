@@ -1,4 +1,5 @@
 {
+  "server": "https://cursor-ai-devices.yoyo-34b.workers.dev",
   "enabled": true,
   "mode": "blocklist",
   "message": "Access to Cursor AI was turned off for this device. Contact the person who gave you the app.",
