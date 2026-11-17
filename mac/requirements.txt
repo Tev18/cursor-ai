@@ -1,0 +1,9 @@
+requests
+certifi
+Pillow
+keyring
+pyobjc-framework-Cocoa; sys_platform == "darwin"
+pyobjc-framework-Quartz; sys_platform == "darwin"
+pynput; sys_platform != "darwin"
+pyinstaller
+cryptography
