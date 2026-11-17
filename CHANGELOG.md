@@ -3,6 +3,10 @@
 All notable changes to Cursor AI. Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/). Each `## [x.y.z]` section becomes the release notes on GitHub.
 
+## [1.0.3] - 2026-11-17
+### Fixed
+- Screenshot quality: selected regions are no longer shrunk to 1568 px. The limit is now 2576 px on the long edge, so Retina/high-DPI text stays sharp (only very large regions are scaled, and always kept under the API's 5 MB limit).
+
 ## [1.0.2] - 2026-11-17
 ### Added
 - **Popup Size** slider (50%–150%) in Appearance: scales the answer popup and its text together. Saved with your settings.

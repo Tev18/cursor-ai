@@ -3,26 +3,30 @@ import ctypes
 import io
 import sys
 
-MAX_EDGE = 1568  # larger images are downscaled by the API anyway
+MAX_EDGE = 2576          # keep detail: only very large regions are scaled down (small text stays sharp)
+MAX_BYTES = 4_500_000    # the API rejects images over 5 MB
 
 
 class CaptureError(Exception):
     pass
 
 
-def downscale_png(data, max_edge=MAX_EDGE):
+def downscale_png(data, max_edge=MAX_EDGE, max_bytes=MAX_BYTES):
     from PIL import Image
     im = Image.open(io.BytesIO(data))
     im.load()
     if im.mode not in ("RGB", "RGBA"):
         im = im.convert("RGB")
     w, h = im.size
-    scale = max_edge / max(w, h)
-    if scale < 1:
-        im = im.resize((max(1, round(w * scale)), max(1, round(h * scale))), Image.LANCZOS)
-    out = io.BytesIO()
-    im.save(out, "PNG", optimize=True)
-    return out.getvalue()
+    edge = max_edge
+    while True:
+        scale = edge / max(w, h)
+        cur = im.resize((max(1, round(w * scale)), max(1, round(h * scale))), Image.LANCZOS) if scale < 1 else im
+        out = io.BytesIO()
+        cur.save(out, "PNG", optimize=True)
+        if out.tell() <= max_bytes or edge <= 600:
+            return out.getvalue()
+        edge = int(min(edge, max(w, h)) * 0.85)   # still too big for the API: shrink a little and retry
 
 
 def virtual_screen(root=None):

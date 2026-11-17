@@ -113,9 +113,16 @@ class Capture(unittest.TestCase):
             return subprocess.CompletedProcess(cmd, rc, b"", b"")
         return r
     def test_ok_downscales(self):
-        out = capture.capture_region(self.runner_writing(png(3000, 1500)))
-        self.assertEqual(Image.open(io.BytesIO(out)).size, (1568, 784))
+        out = capture.capture_region(self.runner_writing(png(4000, 2000)))
+        self.assertEqual(Image.open(io.BytesIO(out)).size, (2576, 1288))
         self.assertEqual(self.cmd[:4], ["screencapture", "-i", "-s", "-x"])
+    def test_retina_region_keeps_full_resolution(self):
+        out = capture.capture_region(self.runner_writing(png(2400, 1500)))
+        self.assertEqual(Image.open(io.BytesIO(out)).size, (2400, 1500))
+    def test_huge_noisy_image_stays_under_api_limit(self):
+        import os as _os
+        noisy = Image.frombytes("RGB", (2600, 1800), _os.urandom(2600 * 1800 * 3)); b = io.BytesIO(); noisy.save(b, "PNG")
+        out = capture.downscale_png(b.getvalue()); self.assertLessEqual(len(out), capture.MAX_BYTES)
     def test_small_not_upscaled(self):
         self.assertEqual(Image.open(io.BytesIO(capture.capture_region(self.runner_writing(png(200, 100))))).size, (200, 100))
     def test_cancel_returns_none(self):

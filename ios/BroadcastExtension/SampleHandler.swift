@@ -71,16 +71,16 @@ class SampleHandler: RPBroadcastSampleHandler {
         lock.lock(); busy = false; lock.unlock()
     }
 
-    /// Orient, downscale to <= 1568 px on the long edge (keeps memory small), JPEG.
+    /// Orient, downscale to <= 2576 px on the long edge, JPEG.
     private func encode(_ pixels: CVPixelBuffer, orientation: CGImagePropertyOrientation) -> Data? {
         var image = CIImage(cvPixelBuffer: pixels).oriented(orientation)
         let longest = max(image.extent.width, image.extent.height)
-        if longest > 1568 {
-            let s = 1568 / longest
+        if longest > 2576 {
+            let s = 2576 / longest
             image = image.transformed(by: CGAffineTransform(scaleX: s, y: s))
         }
         guard let space = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
         return ctx.jpegRepresentation(of: image, colorSpace: space,
-                                      options: [CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String): 0.7])
+                                      options: [CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String): 0.88])
     }
 }
