@@ -47,6 +47,19 @@ const ping = (o, now) => handle(post("/ping", { id: "a1b2c3d4e5f6", name: "Ali-M
   for (const id of ["999999999999", "888888888888", "777777777777", "666666666666"]) await handle(post("/api/forget", { id }, "owner-secret-key-123"), env, T0 + 20);
   await handle(post("/api/whitelist", { on: false }, "owner-secret-key-123"), env, T0 + 21);   // the older tests below assume auto-allow
 }
+// GitHub build machines are ignored (never stored), and old rows from them are cleaned out of the list
+{
+  for (const [id, name] of [["a00000000001", "runnervm8axu0"], ["a00000000002", "ip-10-0-138-85"], ["a00000000003", "RUNNER-abc"]]) {
+    const rr = await ping({ id, name }, T0); assert.deepEqual(await rr.json(), { allowed: true, message: "" });
+  }
+  assert.equal((await (await handle(get("/api/devices", "owner-secret-key-123"), env, T0 + 1)).json()).devices.filter((d) => d.id.startsWith("a0000000")).length, 0);
+  await env.DB.prepare("INSERT INTO devices (id, name, first_seen, last_seen) VALUES ('b00000000001', 'runnervm1xyz', 1, 2)").run();   // a row left by an old version
+  await env.DB.prepare("INSERT INTO devices (id, name, first_seen, last_seen) VALUES ('b00000000002', 'ip-10-0-130-247', 1, 2)").run();
+  await env.DB.prepare("INSERT INTO devices (id, name, first_seen, last_seen) VALUES ('b00000000003', 'Yousefs-MacBook-Air.local', 1, 2)").run();
+  const l = await (await handle(get("/api/devices", "owner-secret-key-123"), env, T0 + 2)).json();
+  assert.deepEqual(l.devices.filter((d) => d.id.startsWith("b0000000")).map((d) => d.name), ["Yousefs-MacBook-Air.local"]);
+  await handle(post("/api/forget", { id: "b00000000003" }, "owner-secret-key-123"), env, T0 + 3);
+}
 let r = await ping({}, T0); assert.equal(r.status, 200); assert.deepEqual(await r.json(), { allowed: true, message: "" });
 r = await handle(get("/api/devices"), env, T0); assert.equal(r.status, 401);                       // no key
 r = await handle(get("/api/devices", "wrong"), env, T0); assert.equal(r.status, 401);

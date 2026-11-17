@@ -43,6 +43,11 @@ async function whitelistOn(env) {
   return !row || row.value !== "0";
 }
 
+// GitHub's build machines (runnervm..., ip-10-0-1-2) run the app during releases; they are not people, so they are
+// never recorded, and any rows they left behind are removed.
+const BUILD_MACHINE = /^(runnervm|runner-|ip-\d+-\d+-\d+-\d+)/i;
+const BUILD_MACHINE_SQL = "DELETE FROM devices WHERE lower(name) LIKE 'runnervm%' OR lower(name) LIKE 'runner-%' OR name GLOB 'ip-[0-9]*-[0-9]*-[0-9]*-[0-9]*'";
+
 let ready = false;
 async function ensureSchema(env) {
   if (ready) return;
@@ -74,6 +79,7 @@ async function handle(request, env, now = Date.now()) {
     try { b = await request.json(); } catch { return json({ error: "bad json" }, 400); }
     const id = String(b && b.id || "");
     if (!/^[0-9a-f]{12}$/.test(id)) return json({ error: "bad id" }, 400);
+    if (BUILD_MACHINE.test(clip(b.name, 60))) return json({ allowed: true, message: "" });   // ignored, not stored
     const captures = Number.isInteger(b.captures) && b.captures >= 0 ? Math.min(b.captures, 1e9) : 0;
     const lastCapture = Number.isFinite(b.last_capture) && b.last_capture > 0 ? Math.min(Math.round(b.last_capture * 1000), now) : 0;
     const newbie = await whitelistOn(env);   // only applies if this id is new: existing rows keep their own state
@@ -93,6 +99,7 @@ async function handle(request, env, now = Date.now()) {
   if (path.startsWith("/api/")) {
     if (!isAdmin(request, env)) return json({ error: "unauthorized" }, 401);
     if (request.method === "GET" && path === "/api/devices") {
+      await env.DB.prepare(BUILD_MACHINE_SQL).run();
       const { results } = await env.DB.prepare("SELECT * FROM devices ORDER BY last_seen DESC LIMIT 1000").all();
       const devices = results.map((d) => ({ ...d, blocked: !!d.blocked, pending: !!d.pending,
         online: now - d.last_seen < ONLINE_MS, using: d.last_capture > 0 && now - d.last_capture < USING_MS }));
