@@ -9,6 +9,10 @@ on:
         description: "Version to release, e.g. 1.0.0 (must match mac/version.py and a CHANGELOG section)"
         required: true
         default: "1.0.0"
+      build_macos:
+        description: "Also build the macOS app (leave off if you build and upload the Mac app yourself)"
+        type: boolean
+        default: false
 permissions:
   contents: write
 env:
@@ -32,6 +36,7 @@ jobs:
 
   build-macos:
     needs: check
+    if: github.event_name != 'workflow_dispatch' || inputs.build_macos
     runs-on: macos-14
     env:
       # Secrets are optional. Without them the app is only ad-hoc signed (see docs/RELEASING.md).
@@ -134,6 +139,7 @@ jobs:
 
   publish:
     needs: [build-macos, build-windows]
+    if: ${{ !cancelled() && needs.build-windows.result == 'success' && (needs.build-macos.result == 'success' || needs.build-macos.result == 'skipped') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -146,6 +152,7 @@ jobs:
           UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
         run: |
           cd assets
+          shopt -s nullglob
           sha256sum Cursor-AI-*.zip Cursor-AI-*.dmg > SHA256SUMS.txt
           if [ -n "$UPDATE_SIGNING_KEY" ]; then
             pip install cryptography
