@@ -12,6 +12,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
+import access
 import answer_window
 import capture
 import claude_client
@@ -26,7 +27,7 @@ SHORTCUTS = (("Capture Screenshot", "cap_var"), ("Show/Hide Popup", "tog_var"), 
 
 
 class App:
-    def __init__(self, root, store=None):
+    def __init__(self, root, store=None, access_obj=None):
         self.root = root
         self.store = store or ss.SettingsStore()
         self.cfg = self.store.load()
@@ -44,11 +45,13 @@ class App:
                                                  self.cfg["always_on_top"], self.cfg["popup_scale"])
         self._upd_info = None
         self._upd_busy = False
+        self.access = access_obj or access.Access(directory=self.store.dir)
         self._build()
         self._fit_window()
         self._load_key_field()
         self.apply_hotkeys(initial=True)
         root.after(100, self._pump)
+        root.after(2500, self._access_tick)
         if self.cfg["auto_update_check"] and updater.configured() and updater.should_auto_check(self.cfg["update_last_check"]):
             root.after(4000, lambda: self.check_updates(silent=True))
         # The X button minimises (the app keeps running so the hotkeys keep working). Use "Quit" to exit.
@@ -90,7 +93,7 @@ class App:
         body = self.scroll.inner
         body.columnconfigure(0, weight=1)
         for r, build in enumerate((self._build_ai, self._build_prompt, self._build_shortcuts,
-                                   self._build_appearance, self._build_updates, self._build_permissions)):
+                                   self._build_appearance, self._build_updates, self._build_access, self._build_permissions)):
             build(body).grid(row=r, column=0, sticky="ew", pady=(0, 8))
 
         # footer
@@ -301,6 +304,57 @@ class App:
         ui.RoundButton(trow, "Save", self.save_token, "secondary", height=34, size=12, min_width=64).grid(row=0, column=1, padx=(8, 0))
         ui.RoundButton(trow, "Clear", self.clear_token, "danger", height=34, size=12, min_width=64).grid(row=0, column=2, padx=(8, 0))
         return card
+
+    def _build_access(self, parent):
+        card = ui.Card(parent, "Device Access")
+        srow = tk.Frame(card.right, bg=ui.CARD)
+        srow.pack()
+        self.acc_dot = ui.StatusDot(srow, 9)
+        self.acc_dot.pack(side="left")
+        self.acc_status = ui.label(srow, "Not checked yet", 11, fg=ui.TEXT2)
+        self.acc_status.pack(side="left", padx=(6, 0))
+        c = card.content
+        ui.label(c, "Whoever shares this app with you can switch your access on or off. Send them your Device ID.",
+                 11, fg=ui.TEXT2).grid(row=0, column=0, sticky="w")
+        r1 = tk.Frame(c, bg=ui.CARD)
+        r1.grid(row=1, column=0, sticky="ew", pady=(8, 0))
+        r1.columnconfigure(1, weight=1)
+        ui.label(r1, "Device", 13, fg=ui.TEXT2).grid(row=0, column=0, sticky="w")
+        self.acc_name = ui.label(r1, self.access.device_name, 13)
+        self.acc_name.grid(row=0, column=1, sticky="e")
+        r2 = tk.Frame(c, bg=ui.CARD)
+        r2.grid(row=2, column=0, sticky="ew", pady=(6, 0))
+        r2.columnconfigure(1, weight=1)
+        ui.label(r2, "Device ID", 13, fg=ui.TEXT2).grid(row=0, column=0, sticky="w")
+        ui.label(r2, self.access.device_id, 13, "bold", fg=ui.GOLD).grid(row=0, column=1, sticky="e", padx=(0, 8))
+        ui.RoundButton(r2, "Copy", self.copy_device_id, "secondary", height=30, size=12, min_width=64).grid(row=0, column=2)
+        brow = tk.Frame(c, bg=ui.CARD)
+        brow.grid(row=3, column=0, sticky="w", pady=(10, 0))
+        self.acc_btn = ui.RoundButton(brow, "Check access", self.refresh_access, "secondary", height=34, size=12, min_width=120)
+        self.acc_btn.pack(side="left")
+        return card
+
+    def copy_device_id(self):
+        self.root.clipboard_clear()
+        self.root.clipboard_append("%s (%s)" % (self.access.device_id, self.access.device_name))
+        self._set_status("Device ID copied. Send it to the person who shares the app.", "ok")
+
+    def refresh_access(self):
+        self._bg(self.access.refresh, "access")
+
+    def _update_access_ui(self):
+        a = self.access
+        if a.state == "blocked":
+            self.acc_dot.set_color(ui.ERROR); self.acc_status.configure(text="Turned off", fg=ui.TEXT)
+        elif a.state == "allowed":
+            self.acc_dot.set_color(ui.SUCCESS)
+            self.acc_status.configure(text="Allowed" if a.source == "online" else "Allowed (saved copy)", fg=ui.TEXT)
+        else:
+            self.acc_dot.set_color(ui.TEXT2); self.acc_status.configure(text="Not checked", fg=ui.TEXT2)
+
+    def _access_tick(self):
+        self.refresh_access()
+        self.root.after(30 * 60 * 1000, self._access_tick)
 
     def _build_permissions(self, parent):
         card = ui.Card(parent, "Windows Notes")
@@ -631,6 +685,12 @@ class App:
     def start_capture(self):
         if self.busy:
             return
+        if self.access.stale():
+            self.refresh_access()
+        if not self.access.allowed:
+            self.answer.show(self.access.message)
+            self._set_status(self.access.message, "error")
+            return
         k = self.store.get_key()
         if not k:
             self._set_status("Save your API key first.", "error")
@@ -712,6 +772,10 @@ class App:
             self.busy = False
             self.answer.show(val)
             self._set_status(val, "error")
+        elif kind in ("access_ok", "access_err"):
+            self._update_access_ui()
+            if not self.access.allowed:
+                self._set_status(self.access.message, "error")
         elif kind == "update_check_ok":
             self._upd_info = val
             self.store.save({"update_last_check": int(time.time())})

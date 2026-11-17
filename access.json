@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "mode": "blocklist",
+  "message": "Access to Cursor AI was turned off for this device. Contact the person who gave you the app.",
+  "devices": {}
+}

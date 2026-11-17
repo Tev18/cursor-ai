@@ -3,6 +3,10 @@
 All notable changes to Cursor AI. Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/). Each `## [x.y.z]` section becomes the release notes on GitHub.
 
+## [1.0.4] - 2026-11-17
+### Added
+- **Device Access** card: shows this device's name and a short Device ID (with a Copy button) and whether access is on. The person who shares the app can switch a device off (or everyone, or use an allowlist) by editing `access.json` in the repo; the app checks it at start, every 30 minutes, and before a capture. Blocked devices see a message instead of an answer. This is a soft control (see docs/ACCESS.md). Owner tool: `tools/access.py`.
+
 ## [1.0.3] - 2026-11-17
 ### Fixed
 - Screenshot quality: selected regions are no longer shrunk to 1568 px. The limit is now 2576 px on the long edge, so Retina/high-DPI text stays sharp (only very large regions are scaled, and always kept under the API's 5 MB limit).
