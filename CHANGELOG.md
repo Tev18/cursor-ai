@@ -3,6 +3,12 @@
 All notable changes to Cursor AI. Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/). Each `## [x.y.z]` section becomes the release notes on GitHub.
 
+## [1.0.1] - 2026-11-17
+### Fixed
+- Mouse wheel and trackpad scrolling in the settings window (it threw an error instead of scrolling); also handles Tk 9 trackpad events.
+- Update check failing with `CERTIFICATE_VERIFY_FAILED` on macOS Python (now trusts the certifi CA bundle).
+- App icon (gold rounded square with a pointer) for the macOS app and the Windows exe.
+
 ## [1.0.0] - 2026-11-17
 First tagged release of the desktop apps.
 
@@ -18,13 +24,8 @@ First tagged release of the desktop apps.
 - Popup opacity slider 10%–100% in 1% steps (85% on new installs) and an **Always on Top** switch.
 - Keyboard shortcut buttons that record the next key combination (shown with ⌃ ⌥ ⇧ ⌘ on macOS), conflict detection.
 - macOS Screen Recording status and shortcut button; Input Monitoring is no longer shown (shortcuts use Carbon hotkeys).
-- App icon (gold rounded square with a pointer) for the macOS app and the Windows exe; regenerate with `tools/make_icon.py`.
 - Windows app with the same features (global hotkeys via `RegisterHotKey`).
 - GitHub Actions: tests on every push; tagged pushes build, sign, (optionally) notarise and publish releases.
-
-### Fixed
-- Mouse wheel and trackpad scrolling in the settings window (it threw an error instead of scrolling); also handles Tk 9 trackpad events.
-- Update check failing with `CERTIFICATE_VERIFY_FAILED` on macOS Python (now trusts the certifi CA bundle).
 
 ### Changed
 - Settings moved to a single `SettingsStore` for secrets (API key, optional GitHub token) with Keychain/Credential Manager first.
