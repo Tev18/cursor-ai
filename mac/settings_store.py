@@ -18,6 +18,7 @@ DEFAULTS = {
     "dark_text": False,
     "opacity": 0.85,          # new installs; any valid saved value is kept
     "always_on_top": True,
+    "display_name": "",       # optional: shown to the person who shares the app, next to your device
     "popup_scale": 1.0,       # popup size + text size, 0.5 .. 1.5
     "auto_update_check": True,
     "update_last_check": 0,
@@ -85,6 +86,7 @@ class SettingsStore:
         op = data["opacity"]
         data["opacity"] = clamp_opacity(op)
         data["always_on_top"] = bool(data["always_on_top"])
+        data["display_name"] = str(data.get("display_name") or "")[:40]
         data["popup_scale"] = clamp_scale(data["popup_scale"])
         return data
 

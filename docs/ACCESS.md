@@ -14,3 +14,6 @@ Cursor AI checks `access.json` (repo root, `main` branch) at start, every 30 min
 3. The device is off within about 15 minutes, or at its next capture/restart.
 
 Limits: the repo is public, so `access.json` and device names are public. Use nicknames. The check is client-side in open-source code: someone who edits the app or stays offline from the start can bypass it. A device that was blocked and then goes offline stays blocked (saved copy). It is meant for people you gave the app to, not for security.
+
+## Dashboard (who is using it)
+See `server/README.md`. With it you also get a live list of every device, who is online or using the app now, and Block/Allow buttons that act within a minute.

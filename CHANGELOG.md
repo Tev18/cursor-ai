@@ -3,6 +3,12 @@
 All notable changes to Cursor AI. Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/). Each `## [x.y.z]` section becomes the release notes on GitHub.
 
+## [1.0.5] - 2026-11-17
+### Added
+- Owner dashboard (`server/`): a free Cloudflare Worker + D1 that lists everyone who ever used the app, who is online or using it now, and lets the owner Block/Allow/Forget a device. Protected by an admin key. Setup: `server/README.md`.
+- Device Access card: optional "Your name" field and a plain statement of what the app reports (name, device, ID, system, version, capture count, last active; never screenshots, answers, prompts or your API key).
+- Mac: the macOS Permissions card now explains how to fix Screen Recording if Cursor AI is already listed (remove it with the minus button, then add it again with the plus button from Applications).
+
 ## [1.0.4] - 2026-11-17
 ### Added
 - **Device Access** card: shows this device's name and a short Device ID (with a Copy button) and whether access is on. The person who shares the app can switch a device off (or everyone, or use an allowlist) by editing `access.json` in the repo; the app checks it at start, every 30 minutes, and before a capture. Blocked devices see a message instead of an answer. This is a soft control (see docs/ACCESS.md). Owner tool: `tools/access.py`.

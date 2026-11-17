@@ -94,6 +94,50 @@ class AppGate(unittest.TestCase):
         self.assertEqual(root.clipboard_get(), ME + " (Test PC)"); root.destroy()
 
 
+class Tracker(unittest.TestCase):
+    def mk(self, policy=None):
+        a = access.Access(directory=tempfile.mkdtemp(), fetcher=lambda: policy or {}, dev_id=ME, name="Test PC")
+        return a
+    def test_server_url_comes_from_policy_and_must_be_https(self):
+        a = self.mk({"server": "https://x.workers.dev/"}); a.refresh(); self.assertEqual(a.server, "https://x.workers.dev")
+        b = self.mk({"server": "http://evil.example"}); b.refresh(); self.assertEqual(b.server, "")
+        c = self.mk({}); c.refresh(); self.assertEqual(c.server, ""); self.assertIsNone(c.report("1.0.5", "mac"))   # nothing configured: no call
+    def test_heartbeat_payload_has_no_secrets(self):
+        a = self.mk({"server": "https://x.workers.dev"}); a.refresh(); a.note_capture(); a.note_capture(); seen = {}
+        def post(url, body, t): seen["u"] = url; seen["b"] = json.loads(body); return {"allowed": True, "message": ""}
+        a.report("1.0.5", "mac", "Ali", poster=post)
+        self.assertEqual(seen["u"], "https://x.workers.dev/ping")
+        self.assertEqual(sorted(seen["b"]), sorted(["id", "name", "display_name", "platform", "version", "captures", "last_capture"]))
+        self.assertEqual((seen["b"]["id"], seen["b"]["name"], seen["b"]["display_name"], seen["b"]["captures"]), (ME, "Test PC", "Ali", 2))
+    def test_owner_can_block_through_the_server_and_it_sticks_offline(self):
+        d = tempfile.mkdtemp()
+        a = access.Access(directory=d, fetcher=lambda: {"server": "https://x.workers.dev"}, dev_id=ME, name="PC"); a.refresh()
+        a.report("1", "mac", "", poster=lambda u, b, t: {"allowed": False, "message": "Off by owner"})
+        self.assertFalse(a.allowed); self.assertEqual((a.state, a.message), ("blocked", "Off by owner"))
+        def boom(): raise OSError("offline")
+        b = access.Access(directory=d, fetcher=boom, dev_id=ME, name="PC"); self.assertFalse(b.allowed); self.assertEqual(b.message, "Off by owner")
+        a.report("1", "mac", "", poster=lambda u, b_, t: {"allowed": True, "message": ""}); self.assertTrue(a.allowed)
+    def test_offline_heartbeat_is_silent_and_keeps_state(self):
+        a = self.mk({"server": "https://x.workers.dev"}); a.refresh()
+        def boom(u, b, t): raise OSError("down")
+        self.assertIsNone(a.report("1", "mac", "", poster=boom)); self.assertTrue(a.allowed)
+    def test_capture_count_survives_restart(self):
+        d = tempfile.mkdtemp(); a = access.Access(directory=d, fetcher=lambda: {}, dev_id=ME); a.refresh(); a.note_capture(); a.note_capture()
+        b = access.Access(directory=d, fetcher=lambda: {}, dev_id=ME); self.assertEqual(b.captures, 2); self.assertGreater(b.last_capture, 0)
+    def test_app_reports_on_capture_and_saves_name(self):
+        import tkinter as tk, app
+        root = tk.Tk(); store = ss.SettingsStore(tempfile.mkdtemp(), KR()); sent = []
+        acc = access.Access(directory=store.dir, fetcher=lambda: {"server": "https://x.workers.dev"}, dev_id=ME, name="PC"); acc.refresh()
+        acc.report = lambda v, p, n, **k: sent.append((v, p, n)) or {"allowed": True}
+        a = app.App(root, store, access_obj=acc); a.hk.stop()
+        a.dname_var.set("  Yousef  "); a.save_display_name()
+        for _ in range(50):
+            root.update(); import time; time.sleep(0.02)
+            if sent: break
+        self.assertEqual(store.load()["display_name"], "Yousef"); self.assertTrue(sent); self.assertEqual(sent[-1][2], "Yousef")
+        root.destroy()
+
+
 class OwnerTool(unittest.TestCase):
     def test_cli_round_trip(self):
         import importlib.util

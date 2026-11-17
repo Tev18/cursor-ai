@@ -8,7 +8,8 @@ This is a soft control meant for people you gave the app to: it is open source a
 computer, so someone who edits the code or never goes online can get around it. It is not security.
 
 access.json:
-  {"enabled": true,                      # false = everyone is switched off
+  {"server": "https://cursor-ai-devices.you.workers.dev",   # optional: the owner's device dashboard (server/README.md)
+   "enabled": true,                      # false = everyone is switched off
    "mode": "blocklist",                  # "blocklist": allowed unless listed as off | "allowlist": only listed-on devices
    "message": "Shown to blocked devices",
    "devices": {"a1b2c3d4e5f6": {"name": "Ali's MacBook", "enabled": false}}}
@@ -30,6 +31,7 @@ import version
 
 DEFAULT_MESSAGE = "Access to Cursor AI was turned off for this device. Contact the person who gave you the app."
 REFRESH_SECONDS = 15 * 60
+REPORT_SECONDS = 60
 
 
 def raw_machine_id():
@@ -102,15 +104,33 @@ class Access:
         self.fetcher = fetcher
         self.device_id = dev_id or device_id()
         self.device_name = name or device_name()
-        self.allowed, self.message = True, ""
-        self.state = "unknown"        # "allowed" | "blocked" | "unknown" (never reached the server and no saved copy)
+        self._pol_allowed, self._pol_message, self._loaded = True, "", False
+        self.remote_blocked, self.remote_message = False, ""   # set by the owner's dashboard (server), via the heartbeat
+        self.server = ""                                        # owner's dashboard URL, from access.json
+        self.captures, self.last_capture = 0, 0.0
         self.checked_at = 0.0
         self.source = "none"          # "online" | "saved" | "none"
         self._load_cache()
 
+    @property
+    def allowed(self):
+        return self._pol_allowed and not self.remote_blocked
+
+    @property
+    def message(self):
+        if self.remote_blocked:
+            return self.remote_message or self._pol_message or DEFAULT_MESSAGE
+        return self._pol_message
+
+    @property
+    def state(self):   # "allowed" | "blocked" | "unknown" (never reached the server and no saved copy)
+        return "blocked" if not self.allowed else ("allowed" if self._loaded else "unknown")
+
     def _apply(self, policy):
-        self.allowed, self.message = evaluate(policy, self.device_id)
-        self.state = "allowed" if self.allowed else "blocked"
+        self._pol_allowed, self._pol_message = evaluate(policy, self.device_id)
+        self._loaded = True
+        srv = policy.get("server") if isinstance(policy, dict) else None
+        self.server = srv.rstrip("/") if isinstance(srv, str) and srv.startswith("https://") and len(srv) < 200 else ""
 
     def _load_cache(self):
         try:
@@ -118,15 +138,26 @@ class Access:
                 data = json.load(f)
             self._apply(data.get("policy") or {})
             self.checked_at, self.source = float(data.get("at") or 0), "saved"
+            rem = data.get("remote") or {}
+            self.remote_blocked, self.remote_message = bool(rem.get("blocked")), str(rem.get("message") or "")
+            self.captures, self.last_capture = int(data.get("captures") or 0), float(data.get("last_capture") or 0)
         except (OSError, ValueError, TypeError, AttributeError):
             pass
 
-    def _save_cache(self, policy):
+    def _save_cache(self, policy=None):
         try:
+            if policy is None:
+                try:
+                    with open(self.cache_path, encoding="utf-8") as f:
+                        policy = json.load(f).get("policy") or {}
+                except (OSError, ValueError):
+                    policy = {}
             os.makedirs(self.dir, exist_ok=True)
             tmp = self.cache_path + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
-                json.dump({"at": time.time(), "policy": policy}, f)
+                json.dump({"at": self.checked_at or time.time(), "policy": policy, "captures": self.captures,
+                           "last_capture": self.last_capture,
+                           "remote": {"blocked": self.remote_blocked, "message": self.remote_message}}, f)
             os.replace(tmp, self.cache_path)
         except OSError:
             pass
@@ -141,6 +172,36 @@ class Access:
         self.checked_at, self.source = time.time(), "online"
         self._save_cache(policy)
         return self.state
+
+    def note_capture(self):
+        """Counts a real capture (never the image or the answer). Reported with the next heartbeat."""
+        self.captures += 1
+        self.last_capture = time.time()
+        self._save_cache()
+
+    def report(self, app_version, platform, display_name="", poster=None, timeout=8):
+        """Heartbeat to the owner's dashboard: device name/ID, system, version, capture count. Never screenshots,
+        answers, prompts or the API key. The reply can switch this device off. Silent when offline."""
+        if not self.server:
+            return None
+        body = json.dumps({"id": self.device_id, "name": self.device_name, "display_name": (display_name or "")[:40],
+                           "platform": platform, "version": app_version, "captures": self.captures,
+                           "last_capture": self.last_capture}).encode()
+        try:
+            if poster is not None:
+                data = poster(self.server + "/ping", body, timeout)
+            else:
+                req = urllib.request.Request(self.server + "/ping", data=body, method="POST",
+                                             headers={"content-type": "application/json", "User-Agent": "CursorAI-device"})
+                with urllib.request.urlopen(req, timeout=timeout, context=updater.ssl_context()) as r:
+                    data = json.loads(r.read().decode("utf-8"))
+            if isinstance(data, dict) and "allowed" in data:
+                self.remote_blocked = data.get("allowed") is False
+                self.remote_message = str(data.get("message") or "")[:200]
+                self._save_cache()
+            return data
+        except Exception:
+            return None
 
     def stale(self):
         return time.time() - self.checked_at > REFRESH_SECONDS

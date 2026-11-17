@@ -54,6 +54,7 @@ class App:
         self.apply_hotkeys(initial=True)
         root.after(100, self._pump)
         root.after(2500, self._access_tick)
+        root.after(6000, self._report_tick)   # heartbeat to the owner's dashboard, once a minute
         if self.cfg["auto_update_check"] and updater.configured() and updater.should_auto_check(self.cfg["update_last_check"]):
             root.after(4000, lambda: self.check_updates(silent=True))
         # Closing the window only hides it: the app keeps running so the hotkeys keep working.
@@ -321,8 +322,10 @@ class App:
         self.acc_status = ui.label(srow, "Not checked yet", 11, fg=ui.TEXT2)
         self.acc_status.pack(side="left", padx=(6, 0))
         c = card.content
-        ui.label(c, "Whoever shares this app with you can switch your access on or off. Send them your Device ID.",
-                 11, fg=ui.TEXT2).grid(row=0, column=0, sticky="w")
+        intro = ui.label(c, "Whoever shares this app with you can switch your access on or off. Send them your Device ID.",
+                         11, fg=ui.TEXT2)
+        intro.grid(row=0, column=0, sticky="ew")
+        ui.autowrap(intro)
         r1 = tk.Frame(c, bg=ui.CARD)
         r1.grid(row=1, column=0, sticky="ew", pady=(8, 0))
         r1.columnconfigure(1, weight=1)
@@ -335,8 +338,21 @@ class App:
         ui.label(r2, "Device ID", 13, fg=ui.TEXT2).grid(row=0, column=0, sticky="w")
         ui.label(r2, self.access.device_id, 13, "bold", fg=ui.GOLD).grid(row=0, column=1, sticky="e", padx=(0, 8))
         ui.RoundButton(r2, "Copy", self.copy_device_id, "secondary", height=30, size=12, min_width=64).grid(row=0, column=2)
+        r3 = tk.Frame(c, bg=ui.CARD)
+        r3.grid(row=3, column=0, sticky="ew", pady=(10, 0))
+        r3.columnconfigure(1, weight=1)
+        ui.label(r3, "Your name", 13, fg=ui.TEXT2).grid(row=0, column=0, sticky="w", padx=(0, 10))
+        self.dname_var = tk.StringVar(value=self.cfg["display_name"])
+        self.dname_field = ui.RoundEntry(r3, self.dname_var, size=12, height=34)
+        self.dname_field.grid(row=0, column=1, sticky="ew")
+        ui.RoundButton(r3, "Save", self.save_display_name, "secondary", height=34, size=12, min_width=64).grid(row=0, column=2, padx=(8, 0))
+        priv = ui.label(c, "To manage access, this app reports your name, device name, Device ID, system, app version, "
+                           "how many captures you took and when you were last active. Screenshots, answers, prompts "
+                           "and your API key are never sent.", 11, fg=ui.TEXT2)
+        priv.grid(row=4, column=0, sticky="ew", pady=(8, 0))
+        ui.autowrap(priv)
         brow = tk.Frame(c, bg=ui.CARD)
-        brow.grid(row=3, column=0, sticky="w", pady=(10, 0))
+        brow.grid(row=5, column=0, sticky="w", pady=(10, 0))
         self.acc_btn = ui.RoundButton(brow, "Check access", self.refresh_access, "secondary", height=34, size=12, min_width=120)
         self.acc_btn.pack(side="left")
         return card
@@ -346,8 +362,20 @@ class App:
         self.root.clipboard_append("%s (%s)" % (self.access.device_id, self.access.device_name))
         self._set_status("Device ID copied. Send it to the person who shares the app.", "ok")
 
+    def save_display_name(self):
+        name = self.dname_var.get().strip()[:40]
+        self.store.save({"display_name": name})
+        self.cfg = self.store.load()
+        self._set_status("Name saved." if name else "Name cleared.", "ok")
+        self.report_now()
+
     def refresh_access(self):
         self._bg(self.access.refresh, "access")
+
+    def report_now(self):
+        """Heartbeat to the owner's dashboard (no-op if the owner has not set one up). Off the UI thread."""
+        if self.access.server:
+            self._bg(lambda: self.access.report(version.VERSION, "mac", self.cfg["display_name"]), "access")
 
     def _update_access_ui(self):
         a = self.access
@@ -362,6 +390,10 @@ class App:
     def _access_tick(self):
         self.refresh_access()
         self.root.after(30 * 60 * 1000, self._access_tick)
+
+    def _report_tick(self):
+        self.report_now()
+        self.root.after(access.REPORT_SECONDS * 1000, self._report_tick)
 
     def _build_permissions(self, parent):
         card = ui.Card(parent, "macOS Permissions")
@@ -381,6 +413,11 @@ class App:
         ui.label(left, "Used to capture screenshots", 11, fg=ui.TEXT2).pack(anchor="w")
         self.perm_btn = ui.RoundButton(row, "Open Settings", self.open_screen_settings, "secondary", height=34, size=12)
         self.perm_btn.grid(row=0, column=1, padx=(12, 0))
+        hint = ui.label(c, "If Cursor AI is already listed under Screen Recording, select it and remove it with the minus (−) "
+                           "button first. Then click the plus (+) button, go to Applications, and select Cursor AI.",
+                        11, fg=ui.TEXT2)
+        hint.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+        ui.autowrap(hint)
         return card
 
     # ---------- window state ----------
@@ -766,6 +803,8 @@ class App:
             return
         k = self.store.get_key()
         cfg = self.store.load()
+        self.access.note_capture()
+        self.report_now()
         self.answer.show("Thinking…")
 
         def job():
