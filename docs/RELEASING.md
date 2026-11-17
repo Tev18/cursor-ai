@@ -44,6 +44,8 @@ personal access token (github.com → Settings → Developer settings → Fine-g
 with **Contents: Read-only**. It is stored in the Keychain / Credential Manager. (Or host releases in a public repo.)
 
 ## 5. Publish a version
+Easiest: GitHub repo → **Actions** → **Release** → **Run workflow** → type the version (e.g. `1.0.0`) → Run. It creates the tag itself.
+Or from the terminal:
 ```bash
 # edit CHANGELOG.md: add  ## [1.1.0] - 2026-12-01
 ./tools/release.sh 1.1.0
