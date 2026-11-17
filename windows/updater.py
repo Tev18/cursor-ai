@@ -18,6 +18,7 @@ import json
 import os
 import re
 import shutil
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -59,6 +60,16 @@ def configured(repo=None):
     return bool(re.match(r"^[\w.-]+/[\w.-]+$", repo)) and not repo.startswith("OWNER/")
 
 
+def ssl_context():
+    """TLS context that trusts the certifi CA bundle. Python on macOS (python.org builds) ships without
+    system certificates, which makes plain urllib fail with CERTIFICATE_VERIFY_FAILED."""
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return ssl.create_default_context()
+
+
 # ---------- HTTP (keeps the GitHub token away from the CDN host it redirects to) ----------
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *a, **k):
@@ -66,7 +77,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def _open(url, token=None, accept="application/vnd.github+json", timeout=20, opener=None, hops=5):
-    opener = opener or urllib.request.build_opener(_NoRedirect)
+    opener = opener or urllib.request.build_opener(_NoRedirect, urllib.request.HTTPSHandler(context=ssl_context()))
     host0 = urlparse(url).netloc
     for _ in range(hops):
         headers = {"User-Agent": UA, "Accept": accept}

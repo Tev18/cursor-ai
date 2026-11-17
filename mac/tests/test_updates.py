@@ -108,6 +108,24 @@ class Github(unittest.TestCase):
         with self.assertRaises(updater.UpdateError): updater.download(bad, tempfile.mkdtemp())
 
 
+class Tls(unittest.TestCase):
+    def test_uses_certifi_bundle_and_verifies(self):
+        import ssl, certifi
+        ctx = updater.ssl_context()
+        self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED); self.assertTrue(ctx.check_hostname)
+        self.assertGreater(len(ctx.get_ca_certs()), 50)                     # real CA list loaded, not empty
+        self.assertTrue(certifi.where())
+    def test_default_opener_has_https_handler_with_that_context(self):
+        import urllib.request
+        seen = []
+        orig = urllib.request.build_opener
+        urllib.request.build_opener = lambda *h: (seen.extend(h), orig(*h))[1]
+        self.addCleanup(lambda: setattr(urllib.request, "build_opener", orig))
+        try: updater._open("http://127.0.0.1:9/x", timeout=1)
+        except updater.UpdateError: pass
+        self.assertTrue(any(isinstance(h, urllib.request.HTTPSHandler) for h in seen))
+
+
 class Verify(unittest.TestCase):
     def test_tampered_zip_rejected_by_checksum_and_signature(self):
         f = Fake(tamper=True, private=False); self.addCleanup(f.close)
@@ -296,6 +314,7 @@ class AppUpdates(unittest.TestCase):
         a.check_btn.invoke(); self.pump(root, a); a.install_btn.invoke()
         self.assertIn("packaged app", a.status.cget("text")); a.hk.stop(); root.destroy()
     def test_unconfigured_repo_message(self):
+        real = version.REPO; self.addCleanup(lambda: setattr(version, "REPO", real)); version.REPO = "OWNER/cursor-ai"
         root, a, _ = self.make(); a.check_btn.invoke(); self.pump(root, a)
         self.assertIn("aren't set up", a.status.cget("text")); a.hk.stop(); root.destroy()
 
