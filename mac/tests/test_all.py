@@ -612,6 +612,38 @@ class Redesign(unittest.TestCase):
         a.hk.stop(); root.destroy()
 
 
+class WheelScroll(unittest.TestCase):
+    def make(self):
+        import time, tkinter as tk, app
+        root = tk.Tk(); store = ss.SettingsStore(tempfile.mkdtemp(), FakeKR())
+        a = app.App(root, store); root.geometry("760x560+0+0")
+        for _ in range(6): root.update(); time.sleep(0.03)
+        return root, a
+    def test_mouse_wheel_scrolls_from_any_control_and_clamps(self):
+        root, a = self.make(); c = a.scroll.canvas
+        self.assertLess(c.yview()[1], 1.0)                                       # content taller than the window
+        for target in (c, a.scroll.inner, a.instr_box, a.op_scale, a.tiles[0], a.check_btn, a.key_field, a.instr):
+            c.yview_moveto(0); root.update()
+            target.event_generate("<MouseWheel>", delta=-120, x=5, y=5); root.update()
+            self.assertGreater(c.yview()[0], 0.0, type(target).__name__)         # wheel down moves the page
+            target.event_generate("<MouseWheel>", delta=120, x=5, y=5); root.update()
+            self.assertEqual(c.yview()[0], 0.0, type(target).__name__)           # and back up, never above the top
+        for _ in range(200): c.event_generate("<MouseWheel>", delta=-120, x=5, y=5)
+        root.update(); self.assertAlmostEqual(c.yview()[1], 1.0, 3)              # clamps at the bottom
+        a.hk.stop(); root.destroy()
+    def test_touchpad_scroll_decoding_and_no_scroll_when_content_fits(self):
+        import ui_kit
+        root, a = self.make(); sf = a.scroll; sf.canvas.yview_moveto(0.0)
+        class E:  # a Tk 9 <TouchpadScroll> event, delta already decoded by Tk's own helper
+            widget = a.check_btn; delta = 0
+        orig = ui_kit._touchpad_dy; self.addCleanup(lambda: setattr(ui_kit, "_touchpad_dy", orig))
+        ui_kit._touchpad_dy = lambda e: -30.0; sf._touchpad(E()); self.assertGreater(sf.canvas.yview()[0], 0)
+        sf.canvas.yview_moveto(0); real = sf.canvas.yview; sf.canvas.yview = lambda *a: (0.0, 1.0) if not a else real(*a)
+        sf._scroll(100); sf.canvas.yview = real; self.assertEqual(real()[0], 0.0)    # everything fits: nothing moves
+        a.hk.stop(); root.destroy()
+
+
+
 class Gui(unittest.TestCase):
     def test_app_smoke(self):
         import tkinter as tk, app

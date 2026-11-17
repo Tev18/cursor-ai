@@ -337,7 +337,16 @@ class ThinScrollbar(tk.Canvas):
 
 def _wheel_pixels(event):
     d = event.delta
-    return -d * (4 if IS_MAC else 0.5) if d else 0
+    return -d * (12 if IS_MAC else 0.5) if d else 0
+
+
+def _touchpad_dy(event):
+    """Vertical pixels from a Tk 9 <TouchpadScroll> event (0 if it can't be decoded)."""
+    try:
+        dx, dy = event.widget.tk.call("::tk::PreciseScrollDeltas", event.delta)
+        return float(dy)
+    except Exception:
+        return 0.0
 
 
 class ScrollFrame(tk.Frame):
@@ -358,6 +367,10 @@ class ScrollFrame(tk.Frame):
         self.canvas.bind("<Configure>", self._on_canvas)
         self.inner.bind("<Configure>", self._on_inner)
         self.canvas.bind_all("<MouseWheel>", self._wheel, add="+")
+        try:
+            self.canvas.bind_all("<TouchpadScroll>", self._touchpad, add="+")
+        except tk.TclError:
+            pass                                   # Tk 8.6 has no such event
         self.canvas.bind_all("<Button-4>", lambda e: self._scroll(-40), add="+")
         self.canvas.bind_all("<Button-5>", lambda e: self._scroll(40), add="+")
 
@@ -378,14 +391,26 @@ class ScrollFrame(tk.Frame):
             self.canvas.yview_moveto(0)
 
     def _scroll(self, px):
+        """Scroll by a number of pixels. (Canvas.yview_scroll has no 'pixels' unit, so use moveto.)"""
         lo, hi = self.canvas.yview()
-        if hi - lo >= 1:
+        if hi - lo >= 1 or not px:
             return
-        self.canvas.yview_scroll(int(px), "pixels")
+        total = max(1, self.inner.winfo_reqheight() + self.pad)
+        top = min(max(0.0, lo + px / total), 1.0 - (hi - lo))
+        self.canvas.yview_moveto(top)
+
+    def _over_me(self, e):
+        w = e.widget
+        return isinstance(w, tk.Misc) and str(w).startswith(str(self.canvas))
 
     def _wheel(self, e):
-        if str(e.widget).startswith(str(self.canvas)):
+        if self._over_me(e):
             self._scroll(_wheel_pixels(e))
+
+    def _touchpad(self, e):
+        """Tk 9 on macOS sends two-finger scrolls as <TouchpadScroll> instead of <MouseWheel>."""
+        if self._over_me(e):
+            self._scroll(-_touchpad_dy(e))
 
 
 # ---------- multi-line editor ----------
@@ -408,7 +433,10 @@ class RoundText(tk.Canvas):
         lo, hi = self.text.yview()
         if hi - lo >= 1:
             return None                      # nothing to scroll here: let the page scroll
-        self.text.yview_scroll(int(_wheel_pixels(e)), "pixels")
+        try:
+            self.text.yview_scroll(int(_wheel_pixels(e)) or (-1 if e.delta > 0 else 1), "pixels")
+        except tk.TclError:
+            self.text.yview_scroll(-1 if e.delta > 0 else 1, "units")
         return "break"
 
     def _layout(self):

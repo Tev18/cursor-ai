@@ -22,6 +22,10 @@ First tagged release of the desktop apps.
 - Windows app with the same features (global hotkeys via `RegisterHotKey`).
 - GitHub Actions: tests on every push; tagged pushes build, sign, (optionally) notarise and publish releases.
 
+### Fixed
+- Mouse wheel and trackpad scrolling in the settings window (it threw an error instead of scrolling); also handles Tk 9 trackpad events.
+- Update check failing with `CERTIFICATE_VERIFY_FAILED` on macOS Python (now trusts the certifi CA bundle).
+
 ### Changed
 - Settings moved to a single `SettingsStore` for secrets (API key, optional GitHub token) with Keychain/Credential Manager first.
 
