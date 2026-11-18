@@ -17,6 +17,7 @@ import access
 import answer_window
 import capture
 import claude_client
+import denied
 import hotkeys
 import selector
 import settings_store as ss
@@ -723,7 +724,7 @@ class App:
         if self.access.stale():
             self.refresh_access()
         if not self.access.allowed:
-            self.answer.show(self.access.message)
+            denied.show(self.root, self.access.message)
             self._set_status(self.access.message, "error")
             return
         k = self.store.get_key()

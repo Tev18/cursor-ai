@@ -3,6 +3,10 @@
 All notable changes to Cursor AI. Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/). Each `## [x.y.z]` section becomes the release notes on GitHub.
 
+## [1.0.8] - 2026-11-18
+### Added
+- **Access denied screen.** When a blocked (or not yet approved) device tries to capture, the whole screen dims and **ACCESS DENIED** appears in big red bold text in the middle, with the owner's message under it. It closes by itself after a few seconds, or on click or any key.
+
 ## [1.0.7] - 2026-11-17
 ### Changed
 - **Whitelist.** The dashboard is now an approval list: a device that has never been approved is blocked automatically ("Waiting for approval") until the owner clicks **Approve** in the dashboard. Approved devices keep working offline. The dashboard has a switch to allow new devices automatically instead. Re-paste `server/worker.js` into Cloudflare to get it (existing rows are kept and stay allowed).
