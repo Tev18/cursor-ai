@@ -258,6 +258,16 @@ class App:
         self.top_var = tk.BooleanVar(value=self.cfg["always_on_top"])
         self.top_switch = ui.GoldSwitch(row, self.top_var, command=self._top_changed)
         self.top_switch.grid(row=0, column=1, padx=(16, 0))
+        row2 = tk.Frame(c, bg=ui.CARD)
+        row2.grid(row=9, column=0, sticky="ew", pady=(14, 0))
+        row2.columnconfigure(0, weight=1)
+        txt2 = tk.Frame(row2, bg=ui.CARD)
+        txt2.grid(row=0, column=0, sticky="ew")
+        ui.label(txt2, "Full Screen Mode", 13).pack(anchor="w")
+        ui.label(txt2, "Capture the whole screen at once, no selecting", 11, fg=ui.TEXT2).pack(anchor="w", fill="x")
+        self.full_var = tk.BooleanVar(value=self.cfg["full_screen"])
+        self.full_switch = ui.GoldSwitch(row2, self.full_var, command=lambda f: self.store.save({"full_screen": bool(f)}))
+        self.full_switch.grid(row=0, column=1, padx=(16, 0))
         return card
 
     def _build_updates(self, parent):
@@ -787,6 +797,9 @@ class App:
         try:
             shot = capture.grab_screen()
             self._quiet_until = time.time() + 2.0
+            if self.store.load()["full_screen"]:   # whole screen: no region to pick
+                self._selected(shot, capture.full_box(shot))
+                return
             sel = selector.RegionSelector(self.root, shot, lambda box: self._selected(shot, box))
             if not getattr(sel, "done", True):   # still open (it can finish instantly in tests)
                 self._sel = sel

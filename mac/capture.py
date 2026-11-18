@@ -84,3 +84,10 @@ def crop_and_downscale(png_bytes, box):
     out = io.BytesIO()
     im.convert("RGB").crop(box).save(out, "PNG")
     return downscale_png(out.getvalue())
+
+
+def full_box(png_bytes):
+    """Crop box covering the whole screenshot."""
+    from PIL import Image
+    im = Image.open(io.BytesIO(png_bytes))
+    return (0, 0, im.width, im.height)

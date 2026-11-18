@@ -3,6 +3,10 @@
 All notable changes to Cursor AI. Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/). Each `## [x.y.z]` section becomes the release notes on GitHub.
 
+## [1.0.9] - 2026-11-18
+### Added
+- **Full Screen Mode.** A new switch under Always on Top. When it is on, the capture hotkey (or Capture now) takes the whole screen at once and sends it to Claude, with no clicking of two corners.
+
 ## [1.0.8] - 2026-11-18
 ### Added
 - **Access denied screen.** When a blocked (or not yet approved) device tries to capture, the whole screen dims and **ACCESS DENIED** appears in big red bold text in the middle, with the owner's message under it. It closes by itself after a few seconds, or on click or any key.
