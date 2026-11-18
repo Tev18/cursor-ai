@@ -77,13 +77,28 @@ def grab_screen(runner=subprocess.run):
             pass
 
 
+def to_jpeg(im, max_edge=MAX_EDGE, quality=90, max_bytes=MAX_BYTES):
+    """Resize (only if bigger than max_edge) and encode as JPEG. Much smaller and faster than PNG,
+    which is what made big screenshots slow to upload."""
+    from PIL import Image
+    im = im.convert("RGB")
+    w, h = im.size
+    edge = max_edge
+    while True:
+        scale = edge / max(w, h)
+        cur = im.resize((max(1, round(w * scale)), max(1, round(h * scale))), Image.LANCZOS) if scale < 1 else im
+        out = io.BytesIO()
+        cur.save(out, "JPEG", quality=quality)
+        if out.tell() <= max_bytes or edge <= 600:
+            return out.getvalue()
+        edge = int(min(edge, max(w, h)) * 0.85)
+
+
 def crop_and_downscale(png_bytes, box):
     from PIL import Image
     im = Image.open(io.BytesIO(png_bytes))
     im.load()
-    out = io.BytesIO()
-    im.convert("RGB").crop(box).save(out, "PNG")
-    return downscale_png(out.getvalue())
+    return to_jpeg(im.convert("RGB").crop(box))
 
 
 def full_box(png_bytes):

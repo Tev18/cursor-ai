@@ -51,8 +51,9 @@ MAX_RETRY_TOKENS = 16000
 def ask_about_image(key, png_bytes, model, instruction, max_tokens=4096, http=requests):
     if not key:
         raise ClaudeError("No API key saved. Paste it in the main window and press Save.")
+    media = "image/jpeg" if png_bytes[:3] == b"\xff\xd8\xff" else "image/png"
     content = [
-        {"type": "image", "source": {"type": "base64", "media_type": "image/png",
+        {"type": "image", "source": {"type": "base64", "media_type": media,
                                      "data": base64.b64encode(png_bytes).decode("ascii")}},
         {"type": "text", "text": instruction},
     ]

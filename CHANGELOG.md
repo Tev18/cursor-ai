@@ -3,6 +3,10 @@
 All notable changes to Cursor AI. Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/). Each `## [x.y.z]` section becomes the release notes on GitHub.
 
+## [1.0.10] - 2026-11-18
+### Changed
+- **Much faster answers.** Screenshots are now sent as high-quality JPEG instead of PNG. A full-screen capture used to be a multi-megabyte PNG that took seconds to compress and upload; it is now a few hundred KB. Text stays sharp (same 2576 px limit, JPEG quality 90).
+
 ## [1.0.9] - 2026-11-18
 ### Added
 - **Full Screen Mode.** A new switch under Always on Top. When it is on, the capture hotkey (or Capture now) takes the whole screen at once and sends it to Claude, with no clicking of two corners.
